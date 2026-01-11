@@ -1,0 +1,21 @@
+[Unit]
+Description=Vending Machine Controller Service
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/vending-machine
+Environment="PATH=/usr/bin:/usr/local/bin"
+ExecStart=/usr/bin/python3 -m ePort.main
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security - limit resources if needed
+# MemoryLimit=100M
+
+[Install]
+WantedBy=multi-user.target
