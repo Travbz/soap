@@ -522,7 +522,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
                 if machine.is_product_button_pressed():
                     machine.control_motor(True)  # Turn motor on
                 else:
-                    time.sleep(0.1)  # Brief delay for debouncing
+                    time.sleep(0.7)  # Brief delay for debouncing
                     machine.control_motor(False)  # Turn motor off
                 
                 motor_error_count = 0  # Reset on success
