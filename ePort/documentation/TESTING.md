@@ -87,12 +87,25 @@ Running: Status Command...
 Running: Reset Command...
 ✓ Reset command test passed!
 
+Running: Request Authorization...
+✓ Authorization request command sent: $20.00
+✓ Command bytes written: 10 bytes
+✓ Request authorization test passed!
+
 Running: Transaction Result Command...
 ✓ Transaction result command test passed!
 ✓ Command bytes written: 29 bytes
 
+Running: Get Transaction ID...
+✓ Transaction ID retrieved: 12345678
+✓ Get transaction ID test passed!
+
+Running: Get Transaction ID (No Response)...
+✓ Get transaction ID returns None for invalid response
+✓ Get transaction ID (no response) test passed!
+
 ============================================================
-Results: 4 passed, 0 failed
+Results: 7 passed, 0 failed
 ============================================================
 ```
 
@@ -115,14 +128,17 @@ pytest ePort/tests/test_payment.py -vv
 ```
 ============================= test session starts =============================
 platform darwin -- Python 3.12.9, pytest-7.4.4
-collected 4 items
+collected 7 items
 
-ePort/tests/test_payment.py::test_crc_calculation PASSED        [ 25%]
-ePort/tests/test_payment.py::test_transaction_result_command PASSED [ 50%]
-ePort/tests/test_payment.py::test_status_command PASSED         [ 75%]
-ePort/tests/test_payment.py::test_reset_command PASSED          [100%]
+ePort/tests/test_payment.py::test_crc_calculation PASSED           [ 14%]
+ePort/tests/test_payment.py::test_status_command PASSED            [ 28%]
+ePort/tests/test_payment.py::test_reset_command PASSED             [ 42%]
+ePort/tests/test_payment.py::test_request_authorization PASSED     [ 57%]
+ePort/tests/test_payment.py::test_transaction_result_command PASSED [ 71%]
+ePort/tests/test_payment.py::test_get_transaction_id PASSED        [ 85%]
+ePort/tests/test_payment.py::test_get_transaction_id_no_response PASSED [100%]
 
-======================== 4 passed in 1.55s =========================
+======================== 7 passed in 1.55s =========================
 ```
 
 ## Understanding the Tests
@@ -174,7 +190,27 @@ The test suite includes the following tests:
 - RESET command can be constructed and sent
 - No errors occur during command transmission
 
-### 4. Transaction Result Command Test
+### 4. Request Authorization Test
+
+**What it does:**
+- Tests the AUTH_REQ command (command 21) for requesting credit card authorization
+- Verifies the authorization command is constructed correctly with CRC
+- Simulates requesting authorization for a transaction amount
+
+**Why it matters:**
+- Authorization is the first step in every transaction
+- Customer swipes/inserts card after authorization is requested
+- Command must be correctly formatted or the ePort device will reject it
+- This is a critical function used in the main application loop
+
+**What it checks:**
+- Command format matches protocol specification (starts with "21", includes RS separator)
+- Authorization amount is correctly encoded in the command
+- CRC is calculated and included correctly
+- Command ends with carriage return (CR)
+- Command is sent to serial port
+
+### 5. Transaction Result Command Test
 
 **What it does:**
 - Tests the TRANSACTION_RESULT command (command 22)
@@ -191,6 +227,40 @@ The test suite includes the following tests:
 - All fields are correctly formatted (quantity, price, item ID, description)
 - CRC is calculated and included correctly
 - Command bytes are generated properly
+
+### 6. Get Transaction ID Test
+
+**What it does:**
+- Tests the get_transaction_id() method (command 13)
+- Verifies transaction ID can be retrieved from the ePort device
+- Tests parsing of transaction ID response
+
+**Why it matters:**
+- Transaction IDs are useful for record-keeping and troubleshooting
+- Helps track individual sales transactions
+- Not critical for machine operation, but valuable for reporting
+
+**What it checks:**
+- Command 13 is sent correctly
+- Transaction ID response (format: "17" + RS + Transaction_ID + CR) is parsed correctly
+- Transaction ID is extracted and returned as a string
+- Handles valid transaction ID responses properly
+
+### 7. Get Transaction ID (No Response) Test
+
+**What it does:**
+- Tests edge case where get_transaction_id() receives an invalid response
+- Verifies the method handles unexpected response formats gracefully
+
+**Why it matters:**
+- Real hardware can sometimes return unexpected responses
+- Code should handle errors gracefully without crashing
+- Returns None when response doesn't match expected format
+
+**What it checks:**
+- Returns None when response doesn't start with "17"
+- Handles invalid response formats without errors
+- Method doesn't crash on unexpected input
 
 ## Test Results Explained
 

@@ -428,57 +428,97 @@ def main():
 
 def handle_dispensing(machine: MachineController, payment: EPortProtocol):
     """
-    Handle the dispensing phase after authorization
+    Handle the dispensing phase after authorization is approved
+    
+    This function manages the entire dispensing session after a card is authorized.
+    The customer can press and hold the product button to dispense, and press the
+    done button when finished. This function runs until the transaction is complete.
+    
+    Flow:
+    1. Set up callbacks for flowmeter pulses and done button
+    2. Enter a loop that monitors the product button and controls the motor
+    3. When done button is pressed, send transaction result to payment processor
+    4. Reset machine state for next customer
     
     Args:
-        machine: MachineController instance
-        payment: EPortProtocol instance
-        
+        machine: MachineController instance (handles GPIO, motors, sensors)
+        payment: EPortProtocol instance (communicates with ePort card reader)
+    
     Raises:
         PaymentProtocolError: If transaction completion fails
         MachineHardwareError: If hardware operations fail
     """
     
     def on_flowmeter_pulse(ounces: float, price: float):
-        """Callback when flowmeter pulses (product dispensed)"""
+        """
+        Callback function called automatically each time the flowmeter sends a pulse
+        
+        This runs in the background as product flows. We just log it for debugging,
+        but the MachineController already tracks the total ounces and price internally.
+        
+        Args:
+            ounces: Total ounces dispensed so far
+            price: Total price calculated so far (in dollars)
+        """
         try:
+            # Log each pulse for debugging (can be helpful to see flow in real-time)
             logger.debug(f"Flowmeter pulse: {ounces:.3f} oz - ${price:.2f}")
         except Exception as e:
             logger.error(f"Error in flowmeter callback: {e}")
     
     def on_done_button():
-        """Callback when done button is pressed"""
+        """
+        Callback function called automatically when customer presses the "done" button
+        
+        This is where we complete the transaction. The customer has finished dispensing
+        product and pressed "done", so we:
+        1. Get the final ounces and price
+        2. Validate the transaction (make sure product was dispensed, price is reasonable)
+        3. Send the transaction result to the payment processor to charge the card
+        4. Reset the machine for the next customer
+        
+        This function runs inside a GPIO interrupt handler, so it needs to handle
+        errors gracefully without crashing the main loop.
+        """
         try:
+            # Get the final dispense information (total ounces and price)
             ounces, price = machine.get_dispense_info()
             
+            # Safety check: If no product was dispensed (price = 0), don't charge anything
             if price <= 0:
                 logger.warning("Done button pressed but no product dispensed - cancelling transaction")
                 machine.reset()
                 return
             
+            # Log the transaction details
             logger.info(f"\nTransaction complete:")
             logger.info(f"  Ounces: {ounces:.3f}")
             logger.info(f"  Price: ${price:.2f}")
             
-            # Validate price before sending
+            # Safety check: Prevent charging more than MAX_TRANSACTION_PRICE (prevents errors/abuse)
             if price > MAX_TRANSACTION_PRICE:
                 logger.error(f"Price too high: ${price:.2f} - refusing transaction")
                 machine.reset()
                 return
             
-            # Send transaction result to ePort
+            # Convert price from dollars to cents for the payment processor
+            # Example: $0.35 → 35 cents
             price_cents = int(round(price * 100))
             
+            # Send the transaction result to the ePort/payment processor
+            # This tells them "charge $X.XX for this transaction"
+            # If this fails, the transaction didn't complete properly
             if not safe_transaction_result(
                 payment=payment,
-                quantity=1,
-                price_cents=price_cents,
-                item_id="1",
-                description=PRODUCT_UNIT[:30]
+                quantity=1,  # We always sell 1 "item" (the dispensed amount)
+                price_cents=price_cents,  # Final price in cents
+                item_id="1",  # Item identifier (used for reporting)
+                description=PRODUCT_UNIT[:30]  # Description, max 30 bytes
             ):
                 raise PaymentProtocolError("Failed to send transaction result")
             
-            # Get transaction ID (non-critical, so don't fail if it doesn't work)
+            # Try to get the transaction ID (useful for records, but not critical)
+            # If this fails, we don't want to fail the whole transaction
             try:
                 transaction_id = payment.get_transaction_id()
                 if transaction_id:
@@ -486,7 +526,8 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
             except Exception as e:
                 logger.warning(f"Could not retrieve transaction ID: {e}")
             
-            # Reset machine state
+            # Reset the machine state (clear counters, remove callbacks)
+            # This prepares the machine for the next customer
             machine.reset()
             logger.info("Machine reset - ready for next customer\n")
             
@@ -502,32 +543,39 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
                 logger.error(f"Error resetting machine after callback error: {reset_error}")
             raise MachineHardwareError(f"Error completing transaction: {e}")
     
-    # Start dispensing mode
+    # Start dispensing mode - set up callbacks and reset counters
     try:
         machine.start_dispensing(
-            flowmeter_callback=on_flowmeter_pulse,
-            done_callback=on_done_button
+            flowmeter_callback=on_flowmeter_pulse,  # Called each time flowmeter pulses
+            done_callback=on_done_button            # Called when customer presses "done"
         )
         logger.info("Dispensing enabled - press button to dispense")
     except Exception as e:
         raise MachineHardwareError(f"Failed to start dispensing mode: {e}")
     
-    # Control loop - monitor product button and manage motor
+    # Main control loop - continuously monitor product button and control motor
+    # This loop runs until the customer presses "done" (which triggers the callback
+    # and eventually causes this function to return)
     motor_error_count = 0
     
     try:
         while True:
             try:
-                # Control motor based on product button
+                # Control motor based on product button state
+                # When customer presses and holds button: motor runs (dispenses product)
+                # When customer releases button: motor stops
                 if machine.is_product_button_pressed():
-                    machine.control_motor(True)  # Turn motor on
+                    machine.control_motor(True)  # Turn motor ON (dispense product)
                 else:
-                    time.sleep(0.7)  # Brief delay for debouncing
-                    machine.control_motor(False)  # Turn motor off
+                    # Button released - add a small delay before turning off
+                    # This prevents rapid on/off cycling if the button bounces
+                    time.sleep(0.7)  # Brief delay for debouncing (prevents rapid cycling)
+                    machine.control_motor(False)  # Turn motor OFF (stop dispensing)
                 
-                motor_error_count = 0  # Reset on success
+                motor_error_count = 0  # Reset error counter on successful iteration
                 
-                # Small sleep to prevent CPU spinning
+                # Small sleep to prevent CPU from spinning at 100% usage
+                # This loop runs very fast, so we add a tiny delay
                 time.sleep(0.1)
                 
             except Exception as e:
