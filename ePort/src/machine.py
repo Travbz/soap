@@ -4,7 +4,7 @@ Handles GPIO, motors, sensors, and dispensing logic
 """
 
 import time
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 
 class MachineController:
@@ -214,7 +214,7 @@ class MachineController:
         """
         return not self.gpio.input(self.done_button_pin)  # Inverted because of pull-up
     
-    def get_dispense_info(self) -> tuple[float, float]:
+    def get_dispense_info(self) -> Tuple[float, float]:
         """
         Get current dispense information for the current transaction
         
