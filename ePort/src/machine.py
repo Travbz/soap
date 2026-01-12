@@ -49,10 +49,6 @@ class MachineController:
         self.done_button_pin = done_button_pin
         
         # Store pricing and calibration configuration
-        # These values are passed from config (ePort/config/__init__.py):
-        # - PRODUCT_PRICE → price_per_ounce
-        # - FLOWMETER_PULSES_PER_OUNCE → pulses_per_ounce
-        # - PRODUCT_UNIT → product_unit
         self.price_per_ounce = price_per_ounce
         self.pulses_per_ounce = pulses_per_ounce
         self.product_unit = product_unit

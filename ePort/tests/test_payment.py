@@ -82,6 +82,83 @@ def test_reset_command():
     return True
 
 
+def test_request_authorization():
+    """Test AUTH_REQ command (command 21) for authorization request"""
+    mock_serial = MockSerial()
+    protocol = EPortProtocol(mock_serial)
+    
+    # Test requesting authorization for $20.00 (2000 cents)
+    protocol.request_authorization(2000)
+    
+    # Check that command was written to serial
+    assert len(mock_serial.write_buffer) > 0, "No data written to serial"
+    
+    # Verify command format: should start with "21" (0x32, 0x31) + RS (0x1E)
+    command_bytes = bytes(mock_serial.write_buffer)
+    assert command_bytes[0] == 0x32, "Command should start with '2' (0x32)"
+    assert command_bytes[1] == 0x31, "Command should have '1' (0x31) as second byte"
+    assert command_bytes[2] == RS, "Command should have RS (0x1E) as third byte"
+    
+    # Verify amount "2000" is in the command
+    assert b'2000' in command_bytes, "Command should contain amount '2000'"
+    
+    # Verify command ends with CR (0x0D)
+    assert command_bytes[-1] == CR, "Command should end with CR (0x0D)"
+    
+    print(f"✓ Authorization request command sent: ${2000 / 100:.2f}")
+    print(f"✓ Command bytes written: {len(mock_serial.write_buffer)} bytes")
+    print("✓ Request authorization test passed!")
+    
+    return True
+
+
+def test_get_transaction_id():
+    """Test get_transaction_id command (command 13)"""
+    mock_serial = MockSerial()
+    protocol = EPortProtocol(mock_serial)
+    
+    # Simulate a transaction ID response: "17" + RS + "12345678" + CR
+    # Format: 17RSTransaction_IDCR
+    transaction_id = "12345678"
+    response = b'17' + bytes([RS]) + transaction_id.encode('ascii') + bytes([CR])
+    mock_serial.read_buffer.extend(response)
+    
+    # Call get_transaction_id - it sends command 13, then status command
+    # We need to set up the status response after command 13 is sent
+    # Actually, get_transaction_id calls status() which sends '1' + CR
+    # So we need to set up response for status command
+    mock_serial.responses[b'1\r'] = response
+    
+    result = protocol.get_transaction_id()
+    
+    # Verify transaction ID was parsed correctly
+    assert result == transaction_id, f"Expected transaction ID '{transaction_id}', got '{result}'"
+    
+    print(f"✓ Transaction ID retrieved: {result}")
+    print("✓ Get transaction ID test passed!")
+    
+    return True
+
+
+def test_get_transaction_id_no_response():
+    """Test get_transaction_id when response doesn't match expected format"""
+    mock_serial = MockSerial()
+    protocol = EPortProtocol(mock_serial)
+    
+    # Set up a status response that doesn't match transaction ID format (not starting with "17")
+    mock_serial.responses[b'1\r'] = b'9\r'  # Some other status code
+    
+    result = protocol.get_transaction_id()
+    
+    # Should return None when response doesn't match expected format
+    assert result is None, "Should return None when response doesn't match transaction ID format"
+    
+    print("✓ Get transaction ID returns None for invalid response")
+    print("✓ Get transaction ID (no response) test passed!")
+    
+    return True
+
+
 def run_all_tests():
     """Run all tests"""
     print("=" * 60)
@@ -93,7 +170,10 @@ def run_all_tests():
         ("CRC Calculation", test_crc_calculation),
         ("Status Command", test_status_command),
         ("Reset Command", test_reset_command),
+        ("Request Authorization", test_request_authorization),
         ("Transaction Result Command", test_transaction_result_command),
+        ("Get Transaction ID", test_get_transaction_id),
+        ("Get Transaction ID (No Response)", test_get_transaction_id_no_response),
     ]
     
     passed = 0
