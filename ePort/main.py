@@ -443,7 +443,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
     Args:
         machine: MachineController instance (handles GPIO, motors, sensors)
         payment: EPortProtocol instance (communicates with ePort card reader)
-    
+        
     Raises:
         PaymentProtocolError: If transaction completion fails
         MachineHardwareError: If hardware operations fail
@@ -461,8 +461,8 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
             price: Total price calculated so far (in dollars)
         """
         try:
-            # Log each pulse for debugging (can be helpful to see flow in real-time)
-            logger.debug(f"Flowmeter pulse: {ounces:.3f} oz - ${price:.2f}")
+            # Log each pulse in real-time so you can see product being dispensed
+            logger.info(f"Flowmeter pulse: {ounces:.3f} oz - ${price:.2f}")
         except Exception as e:
             logger.error(f"Error in flowmeter callback: {e}")
     
