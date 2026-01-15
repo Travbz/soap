@@ -239,7 +239,8 @@ def safe_transaction_result(payment: EPortProtocol, quantity: int, price_cents: 
                 description=description
             )
             if success:
-                logger.info(f"Transaction result sent successfully: ${price_cents / 100:.2f}")
+                print(f"Transaction result sent successfully: ${price_cents / 100:.2f}")
+                logger.debug(f"Transaction result sent successfully: ${price_cents / 100:.2f}")
                 return True
             else:
                 logger.warning(f"Transaction result returned False on attempt {attempt}")
@@ -443,11 +444,15 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
     Args:
         machine: MachineController instance (handles GPIO, motors, sensors)
         payment: EPortProtocol instance (communicates with ePort card reader)
-        
+    
     Raises:
         PaymentProtocolError: If transaction completion fails
         MachineHardwareError: If hardware operations fail
     """
+    
+    # Flag to signal that transaction is complete or cancelled
+    # This allows the callback to exit the dispensing loop
+    transaction_complete = False
     
     def on_flowmeter_pulse(ounces: float, price: float):
         """
@@ -461,8 +466,9 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
             price: Total price calculated so far (in dollars)
         """
         try:
-            # Log each pulse in real-time so you can see product being dispensed
-            logger.info(f"Flowmeter pulse: {ounces:.3f} oz - ${price:.2f}")
+            # Log each pulse in real-time (use debug level to keep output clean)
+            # Change to logger.info() if you want to see flowmeter output during operation
+            logger.debug(f"Flowmeter pulse: {ounces:.3f} oz - ${price:.2f}")
         except Exception as e:
             logger.error(f"Error in flowmeter callback: {e}")
     
@@ -488,17 +494,22 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
             if price <= 0:
                 logger.warning("Done button pressed but no product dispensed - cancelling transaction")
                 machine.reset()
+                # Signal that transaction is cancelled so the dispensing loop exits
+                nonlocal transaction_complete
+                transaction_complete = True
                 return
             
-            # Log the transaction details
-            logger.info(f"\nTransaction complete:")
-            logger.info(f"  Ounces: {ounces:.3f}")
-            logger.info(f"  Price: ${price:.2f}")
+            # Display transaction details to customer (clean output, no timestamps)
+            print(f"\nOunces: {ounces:.3f}")
+            print(f"Price: ${price:.2f}")
             
             # Safety check: Prevent charging more than MAX_TRANSACTION_PRICE (prevents errors/abuse)
             if price > MAX_TRANSACTION_PRICE:
                 logger.error(f"Price too high: ${price:.2f} - refusing transaction")
                 machine.reset()
+                # Signal that transaction is cancelled so the dispensing loop exits
+                nonlocal transaction_complete
+                transaction_complete = True
                 return
             
             # Convert price from dollars to cents for the payment processor
@@ -529,7 +540,12 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
             # Reset the machine state (clear counters, remove callbacks)
             # This prepares the machine for the next customer
             machine.reset()
-            logger.info("Machine reset - ready for next customer\n")
+            print("Machine reset - ready for next customer\n")
+            logger.debug("Machine reset - ready for next customer")
+            
+            # Signal that transaction is complete so the dispensing loop exits
+            nonlocal transaction_complete
+            transaction_complete = True
             
         except PaymentProtocolError:
             # Re-raise payment protocol errors
@@ -555,11 +571,11 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
     
     # Main control loop - continuously monitor product button and control motor
     # This loop runs until the customer presses "done" (which triggers the callback
-    # and eventually causes this function to return)
+    # and sets transaction_complete = True) or an error occurs
     motor_error_count = 0
     
     try:
-        while True:
+        while not transaction_complete:
             try:
                 # Control motor based on product button state
                 # When customer presses and holds button: motor runs (dispenses product)

@@ -153,13 +153,14 @@ class MachineController:
         
         # Setup interrupt handler for done button
         # FALLING edge means the signal goes from HIGH to LOW (button pressed, connects to ground)
-        # bouncetime=300 means ignore any changes for 300ms after the first detection
+        # bouncetime=500 means ignore any changes for 500ms after the first detection
         #   This prevents false triggers from electrical "bounce" when a mechanical button is pressed
+        #   Increased from 300ms to 500ms for better debouncing
         self.gpio.add_event_detect(
             self.done_button_pin, 
             self.gpio.FALLING,  # Trigger on falling edge (HIGH → LOW transition)
             callback=lambda x: self._on_done_button(),  # Call our handler function
-            bouncetime=300  # Ignore changes for 300ms (prevents button bounce false triggers)
+            bouncetime=500  # Ignore changes for 500ms (prevents button bounce false triggers)
         )
     
     def _on_done_button(self):
@@ -169,7 +170,18 @@ class MachineController:
         This function is called automatically by the GPIO interrupt handler when the
         done button is pressed. It triggers the callback function that was passed to
         start_dispensing(), which handles the transaction completion logic.
+        
+        Includes software debouncing: checks if button is actually pressed to prevent
+        false triggers from electrical noise.
         """
+        # Software debouncing: verify button is actually pressed (not just noise)
+        # Wait a tiny bit then check again to filter out brief spikes
+        time.sleep(0.01)  # 10ms delay
+        if not self.is_done_button_pressed():
+            # Button not actually pressed - false trigger, ignore it
+            return
+        
+        # Button is actually pressed - trigger the callback
         if self._done_callback:
             self._done_callback()
     
