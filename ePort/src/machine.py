@@ -142,6 +142,18 @@ class MachineController:
         self._flowmeter_callback = flowmeter_callback
         self._done_callback = done_callback
         
+        # Remove any existing event detection before adding new ones
+        # This prevents "Conflicting edge detection already enabled" errors
+        # when start_dispensing() is called multiple times
+        try:
+            self.gpio.remove_event_detect(self.flowmeter_pin)
+        except RuntimeError:
+            pass  # No event detection was set up, that's fine
+        try:
+            self.gpio.remove_event_detect(self.done_button_pin)
+        except RuntimeError:
+            pass  # No event detection was set up, that's fine
+        
         # Setup interrupt handler for flowmeter pulses
         # RISING edge means the signal goes from LOW to HIGH (a pulse)
         # When a pulse is detected, automatically call self._on_flowmeter_pulse()
@@ -248,6 +260,17 @@ class MachineController:
         for the next customer. Clears all the state variables and removes callback
         references so the machine is ready for a new dispensing session.
         """
+        # Remove event detection to clean up GPIO state
+        # This prevents conflicts when start_dispensing() is called again
+        try:
+            self.gpio.remove_event_detect(self.flowmeter_pin)
+        except RuntimeError:
+            pass  # No event detection was set up, that's fine
+        try:
+            self.gpio.remove_event_detect(self.done_button_pin)
+        except RuntimeError:
+            pass  # No event detection was set up, that's fine
+        
         # Reset all counters to zero
         self.pulse_count = 0
         self.product_ounces = 0.0
