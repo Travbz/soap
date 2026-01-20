@@ -486,6 +486,9 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
         This function runs inside a GPIO interrupt handler, so it needs to handle
         errors gracefully without crashing the main loop.
         """
+        # Declare nonlocal at the top of the function (required by Python)
+        nonlocal transaction_complete
+        
         try:
             # Get the final dispense information (total ounces and price)
             ounces, price = machine.get_dispense_info()
@@ -495,7 +498,6 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
                 logger.warning("Done button pressed but no product dispensed - cancelling transaction")
                 machine.reset()
                 # Signal that transaction is cancelled so the dispensing loop exits
-                nonlocal transaction_complete
                 transaction_complete = True
                 return
             
@@ -508,7 +510,6 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
                 logger.error(f"Price too high: ${price:.2f} - refusing transaction")
                 machine.reset()
                 # Signal that transaction is cancelled so the dispensing loop exits
-                nonlocal transaction_complete
                 transaction_complete = True
                 return
             
@@ -544,7 +545,6 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
             logger.debug("Machine reset - ready for next customer")
             
             # Signal that transaction is complete so the dispensing loop exits
-            nonlocal transaction_complete
             transaction_complete = True
             
         except PaymentProtocolError:
