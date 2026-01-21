@@ -1,0 +1,179 @@
+name: Release on Merge to Main
+
+on:
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to create releases and tags
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for semantic versioning
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Install GitHub CLI
+        run: |
+          type -p curl >/dev/null || (apt update && apt install curl -y)
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && apt update \
+          && apt install gh -y
+      
+      - name: Determine version from conventional commits
+        id: version
+        run: |
+          python3 << 'EOF'
+          import subprocess
+          import re
+          import sys
+          import os
+          
+          # Get the latest tag
+          try:
+              result = subprocess.run(
+                  ['git', 'describe', '--tags', '--abbrev=0'],
+                  capture_output=True,
+                  text=True,
+                  check=True
+              )
+              latest_tag = result.stdout.strip()
+          except subprocess.CalledProcessError:
+              latest_tag = "v0.0.0"
+          
+          print(f"Latest tag: {latest_tag}")
+          
+          # Extract version numbers
+          match = re.search(r'v?(\d+)\.(\d+)\.(\d+)', latest_tag)
+          if match:
+              major, minor, patch = map(int, match.groups())
+          else:
+              major, minor, patch = 0, 0, 0
+          
+          # Get commits since last tag
+          if latest_tag == "v0.0.0":
+              cmd = ['git', 'log', '--pretty=format:%s', '--no-merges']
+          else:
+              cmd = ['git', 'log', f'{latest_tag}..HEAD', '--pretty=format:%s', '--no-merges']
+          
+          result = subprocess.run(cmd, capture_output=True, text=True)
+          commits = result.stdout
+          
+          if not commits.strip():
+              print("No new commits since last tag, skipping release")
+              sys.exit(0)
+          
+          # Determine version bump type based on conventional commits
+          # BREAKING CHANGE: or ! in footer = major
+          # feat: = minor
+          # fix:, refactor:, chore:, docs: = patch
+          version_bump = "patch"
+          should_release = False
+          
+          if "BREAKING CHANGE:" in commits or re.search(r'^[^:]+!:', commits, re.MULTILINE):
+              version_bump = "major"
+              major += 1
+              minor = 0
+              patch = 0
+              should_release = True
+          elif re.search(r'^feat:', commits, re.MULTILINE):
+              version_bump = "minor"
+              minor += 1
+              patch = 0
+              should_release = True
+          elif re.search(r'^(fix|refactor|chore|docs):', commits, re.MULTILINE):
+              version_bump = "patch"
+              patch += 1
+              should_release = True
+          else:
+              # No conventional commits found, skip release
+              print("No conventional commits found (feat:, fix:, refactor:, chore:, docs:, or BREAKING CHANGE:), skipping release")
+              sys.exit(0)
+          
+          new_version = f"v{major}.{minor}.{patch}"
+          print(f"New version: {new_version}")
+          print(f"Version bump type: {version_bump}")
+          
+          # Write to GITHUB_OUTPUT
+          output_file = os.environ.get('GITHUB_OUTPUT')
+          if output_file:
+              with open(output_file, 'a') as f:
+                  f.write(f"version={new_version}\n")
+                  f.write(f"version_bump={version_bump}\n")
+                  f.write(f"should_release=true\n")
+          EOF
+        continue-on-error: true
+      
+      - name: Create git tag and release
+        if: steps.version.outputs.should_release == 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION_BUMP="${{ steps.version.outputs.version_bump }}"
+          
+          # Create annotated tag
+          git tag -a "$VERSION" -m "Release $VERSION"
+          
+          # Push tag
+          git push origin "$VERSION"
+          
+          # Create release notes from commits
+          if [ "$VERSION_BUMP" = "major" ]; then
+            RELEASE_NOTES="## 🚀 Major Release: $VERSION
+          
+          ⚠️ **BREAKING CHANGES** - This release contains breaking changes.
+          
+          "
+          elif [ "$VERSION_BUMP" = "minor" ]; then
+            RELEASE_NOTES="## ✨ Minor Release: $VERSION
+          
+          New features and improvements.
+          
+          "
+          else
+            RELEASE_NOTES="## 🐛 Patch Release: $VERSION
+          
+          Bug fixes and patches.
+          
+          "
+          fi
+          
+          # Get commit messages since last tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "v0.0.0")
+          if [ "$LATEST_TAG" = "v0.0.0" ]; then
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
+          else
+            COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+          fi
+          
+          RELEASE_NOTES="${RELEASE_NOTES}### Changes
+          
+          ${COMMITS}
+          
+          ---
+          
+          *This release was automatically generated from conventional commits.*"
+          
+          # Create GitHub release using GitHub CLI
+          echo "$RELEASE_NOTES" | gh release create "$VERSION" \
+            --title "Release $VERSION" \
+            --notes-file -
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
