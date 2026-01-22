@@ -1,0 +1,336 @@
+# AI Coding Assistant Rules for Vending Machine Controller Project
+
+## Project Context
+
+This is a Raspberry Pi-based vending machine controller that handles:
+- Credit card payments via ePort serial protocol
+- Hardware control (motors, flowmeters, buttons) via GPIO
+- Real-time product dispensing with price calculation
+
+**Target Environment:** Raspberry Pi with Python 3.7
+
+## Required Reading on New Context
+
+When starting work in a new context window, ALWAYS read these files first:
+1. `/Users/travops/soap/ePort/documentation/SDLC.md` - Development workflow and GitHub Actions
+2. `/Users/travops/soap/ePort/documentation/ARCHITECTURE.md` - System architecture
+3. `/Users/travops/soap/ePort/documentation/SETUP.md` - Setup and deployment
+4. `/Users/travops/soap/ePort/documentation/TESTING.md` - Testing approach
+
+## Core Rules
+
+### 1. Configuration Management
+
+**NEVER hardcode values.** All configuration goes in `/Users/travops/soap/ePort/config/__init__.py`
+
+```python
+# ✅ CORRECT - Use config
+from ..config import MOTOR_PIN, EPORT_COMMAND_DELAY
+time.sleep(EPORT_COMMAND_DELAY)
+
+# ❌ WRONG - Hardcoded
+time.sleep(0.5)
+```
+
+**Config categories to maintain:**
+- Serial port settings
+- GPIO pin assignments
+- Timing/delay values
+- Retry and error handling limits
+- Product pricing and calibration
+- Protocol constants
+
+### 2. Code Organization
+
+**Use classes** and organize under `/Users/travops/soap/ePort/src/`
+
+```
+ePort/
+├── src/
+│   ├── payment.py      # EPortProtocol class
+│   ├── machine.py      # MachineController class
+│   └── [new_module.py] # New classes go here
+├── config/
+│   └── __init__.py     # All configuration constants
+├── tests/
+│   └── test_*.py       # Test files
+└── main.py             # Entry point only
+```
+
+**Class design principles:**
+- Single responsibility per class
+- Clear initialization with config parameters
+- Public methods documented with docstrings
+- Private methods prefixed with `_`
+
+### 3. Documentation
+
+**Keep docs concise.** Humans don't read 500-line documents.
+
+**Inline comments:**
+- Explain WHY, not WHAT
+- Keep comments brief (1-2 lines max)
+- Focus on non-obvious logic
+
+**Docstrings:**
+- Required for public methods and classes
+- Format: Brief description + Args + Returns
+- Keep under 10 lines
+
+```python
+# ✅ GOOD - Concise and useful
+def reset(self):
+    """Reset ePort device to prepare for new transaction"""
+    command = bytearray([0x33, CR])
+    self.ser.write(command)
+    time.sleep(EPORT_COMMAND_DELAY)
+
+# ❌ BAD - Over-documented
+def reset(self):
+    """
+    Send RESET command (command 3) to reset the ePort device
+    
+    This clears the ePort's internal state and prepares it for a new transaction.
+    Typically called before requesting authorization to ensure the device is in
+    a known good state. The reset command is command 3 in the ePort protocol.
+    
+    Technical Details:
+        - Command format: 0x33 (ASCII '3') + CR (0x0D)
+        - Wait time: EPORT_COMMAND_DELAY from config
+        - No response expected from device
+        
+    See Serial ePort Protocol documentation page 12 for details.
+    """
+```
+
+### 4. Testing
+
+**ALWAYS run tests before committing.**
+
+```bash
+# Run tests
+python3 -m ePort.tests.test_payment
+
+# If tests pass, then commit
+git add .
+git commit -m "feat: add new feature"
+```
+
+**Test requirements:**
+- Add tests for new functionality
+- Update existing tests when changing behavior
+- Use mocks from `ePort/tests/mocks.py` for hardware
+- Tests must pass on Python 3.7
+
+### 5. Commit Standards
+
+**Use Conventional Commits** for all commits.
+
+**Format:** `<type>(<scope>): <description>`
+
+**Common types:**
+- `feat:` - New feature (minor version bump)
+- `fix:` - Bug fix (patch version bump)
+- `refactor:` - Code refactoring (patch version bump)
+- `docs:` - Documentation only (patch version bump)
+- `chore:` - Maintenance tasks (patch version bump)
+- `test:` - Test changes (no release)
+- `BREAKING CHANGE:` or `!` - Breaking changes (major version bump)
+
+```bash
+# ✅ GOOD
+git commit -m "feat: add receipt printer support"
+git commit -m "fix: resolve GPIO conflict on restart"
+git commit -m "refactor: centralize timing configuration"
+git commit -m "docs: update SDLC workflow guide"
+
+# ❌ BAD
+git commit -m "update code"
+git commit -m "fix stuff"
+git commit -m "changes"
+```
+
+### 6. SDLC Workflow
+
+**Follow the documented workflow:**
+
+1. **Create feature branch:** `git checkout -b feature/descriptive-name`
+2. **Make changes** following these rules
+3. **Run tests:** `python3 -m ePort.tests.test_payment`
+4. **Commit:** Use conventional commits
+5. **Push and create PR:** Tests run automatically
+6. **Merge to main:** Automated release created
+
+**Branch naming:**
+- `feature/` - New features
+- `fix/` - Bug fixes
+- `refactor/` - Code refactoring
+- `docs/` - Documentation
+- `chore/` - Maintenance
+
+## Python Compatibility
+
+**Target: Python 3.7** (Raspberry Pi environment)
+
+**Type hints:**
+```python
+# ✅ Python 3.7 compatible
+from typing import Tuple, Optional
+def get_info(self) -> Tuple[float, float]:
+
+# ❌ Python 3.9+ only (will fail on Pi)
+def get_info(self) -> tuple[float, float]:
+```
+
+**Avoid:**
+- `dict[str, int]` → Use `Dict[str, int]`
+- `list[str]` → Use `List[str]`
+- Walrus operator `:=` (Python 3.8+)
+- `match/case` statements (Python 3.10+)
+
+## Code Quality Checklist
+
+Before committing, verify:
+
+- [ ] No hardcoded values (all in config)
+- [ ] Classes properly organized in `src/`
+- [ ] Tests added/updated and passing
+- [ ] Docstrings on public methods (concise)
+- [ ] Conventional commit message
+- [ ] Python 3.7 compatible
+- [ ] No linter errors
+
+## Common Patterns
+
+### Adding a New Timing Value
+
+```python
+# 1. Add to config
+# /Users/travops/soap/ePort/config/__init__.py
+NEW_OPERATION_DELAY = 2.0  # Wait time for new operation in seconds
+
+# 2. Import in module
+from ..config import NEW_OPERATION_DELAY
+
+# 3. Use in code
+time.sleep(NEW_OPERATION_DELAY)
+```
+
+### Adding a New Hardware Component
+
+```python
+# 1. Add pin to config
+# /Users/travops/soap/ePort/config/__init__.py
+NEW_SENSOR_PIN = 18
+
+# 2. Create class in src/
+# /Users/travops/soap/ePort/src/new_sensor.py
+class NewSensorController:
+    def __init__(self, gpio, pin: int):
+        self.gpio = gpio
+        self.pin = pin
+        self._setup_gpio()
+
+# 3. Import in main.py
+from .src.new_sensor import NewSensorController
+from .config import NEW_SENSOR_PIN
+
+# 4. Add tests
+# /Users/travops/soap/ePort/tests/test_new_sensor.py
+```
+
+### Creating a Pull Request
+
+```bash
+# 1. Create branch
+git checkout -b feature/add-sensor-support
+
+# 2. Make changes
+# ... code changes ...
+
+# 3. Run tests
+python3 -m ePort.tests.test_payment
+
+# 4. Commit
+git add .
+git commit -m "feat: add temperature sensor support"
+
+# 5. Push
+git push origin feature/add-sensor-support
+
+# 6. Create PR on GitHub
+# Tests run automatically, merge when approved
+```
+
+## Error Handling
+
+**Use custom exceptions** from `ePort/main.py`:
+- `VendingMachineError` - Base exception
+- `SerialConnectionError` - Serial/ePort errors
+- `PaymentProtocolError` - Payment processing errors
+- `MachineHardwareError` - GPIO/hardware errors
+
+**Pattern:**
+```python
+if not success:
+    raise PaymentProtocolError("Failed to process transaction")
+```
+
+## Logging
+
+**Use appropriate log levels:**
+- `logger.debug()` - Detailed diagnostic info
+- `logger.info()` - General informational messages
+- `logger.warning()` - Recoverable errors, retry attempts
+- `logger.error()` - Errors that need attention
+- `logger.critical()` - Fatal errors causing shutdown
+
+**Customer-facing output:** Use `print()` (no timestamps/levels)
+
+```python
+# For logs
+logger.info("Authorization approved")
+
+# For customer display
+print("Ounces: 2.34")
+print("Price: $0.35")
+```
+
+## File Paths
+
+**Always use absolute paths** for this project:
+- Config: `/Users/travops/soap/ePort/config/__init__.py`
+- Source: `/Users/travops/soap/ePort/src/`
+- Tests: `/Users/travops/soap/ePort/tests/`
+- Docs: `/Users/travops/soap/ePort/documentation/`
+
+## GitHub Actions
+
+**Two automated workflows:**
+
+1. **PR Tests** (`.github/workflows/pr-tests.yml`)
+   - Runs on PR open/update
+   - Tests with Python 3.7
+   - Must pass before merge
+
+2. **Release** (`.github/workflows/release.yml`)
+   - Runs on merge to main
+   - Creates version tag and release
+   - Based on conventional commits
+
+**Don't modify workflows** without understanding semantic versioning impact.
+
+## Summary
+
+**Golden Rules:**
+1. 📋 Config in `/Users/travops/soap/ePort/config/__init__.py` - NEVER hardcode
+2. 🏗️ Classes in `/Users/travops/soap/ePort/src/` - Organized structure
+3. 📝 Docs concise - Humans don't read novels
+4. ✅ Run tests before commit - `python3 -m ePort.tests.test_payment`
+5. 💬 Conventional commits - Enable automated releases
+6. 📚 Read docs on new context - Understand the system first
+
+**When in doubt:**
+- Check existing code patterns
+- Read SDLC.md for workflow questions
+- Keep it simple and maintainable
