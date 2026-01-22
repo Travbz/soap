@@ -8,7 +8,7 @@ on:
       - main
 
 jobs:
-  test:
+  run_tests:
     runs-on: ubuntu-latest
     
     steps:
@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: |
           # Install pyserial for tests (RPi.GPIO not needed - tests use mocks)
-          sudo uv pip install pyserial --python python3.7 --system
+          sudo $(which uv) pip install pyserial --python python3.7 --system
       
       - name: Run payment protocol tests
         run: |
