@@ -27,7 +27,14 @@ from .config import (
     MAX_RETRIES, RETRY_DELAY, STATUS_POLL_INTERVAL, SERIAL_OPEN_RETRIES,
     MAX_CONSECUTIVE_ERRORS, MAX_MOTOR_ERRORS, MAX_TRANSACTION_PRICE,
     AUTH_AMOUNT_CENTS,
-    CR
+    CR,
+    EPORT_INIT_DELAY,
+    AUTHORIZATION_STATUS_CHECK_DELAY,
+    POST_RESET_DELAY,
+    DECLINED_CARD_RETRY_DELAY,
+    MOTOR_CONTROL_LOOP_DELAY,
+    MOTOR_OFF_DEBOUNCE_DELAY,
+    MOTOR_ERROR_RETRY_DELAY
 )
 
 # Configure logging
@@ -85,7 +92,7 @@ def setup_serial_connection() -> serial.Serial:
             )
             
             # Test connection with a status check
-            time.sleep(0.5)  # Give device time to initialize
+            time.sleep(EPORT_INIT_DELAY)  # Give device time to initialize
             logger.info(f"Serial connection established to {SERIAL_PORT}")
             return ser
             
@@ -151,7 +158,7 @@ def safe_status_check(payment: EPortProtocol, retries: int = None) -> Optional[b
         except Exception as e:
             logger.warning(f"Status check attempt {attempt}/{retries} failed: {e}")
             if attempt < retries:
-                time.sleep(1)
+                time.sleep(RETRY_DELAY)
             else:
                 logger.error(f"Status check failed after {retries} attempts: {e}")
                 return None
@@ -183,7 +190,7 @@ def safe_authorization_request(payment: EPortProtocol, amount_cents: int, retrie
         except Exception as e:
             logger.warning(f"Authorization request attempt {attempt}/{retries} failed: {e}")
             if attempt < retries:
-                time.sleep(1)
+                time.sleep(RETRY_DELAY)
             else:
                 logger.error(f"Authorization request failed after {retries} attempts: {e}")
                 return False
@@ -247,7 +254,7 @@ def safe_transaction_result(payment: EPortProtocol, quantity: int, price_cents: 
         except Exception as e:
             logger.warning(f"Transaction result attempt {attempt}/{retries} failed: {e}")
             if attempt < retries:
-                time.sleep(1)
+                time.sleep(RETRY_DELAY)
     
     logger.error(f"Transaction result failed after {retries} attempts")
     return False
@@ -349,7 +356,7 @@ def main():
                         time.sleep(RETRY_DELAY)
                         continue
                     
-                    time.sleep(1)
+                    time.sleep(POST_RESET_DELAY)
                     
                     # Request authorization
                     if not safe_authorization_request(payment, AUTH_AMOUNT_CENTS):
@@ -358,7 +365,7 @@ def main():
                         continue
                     
                     # Check authorization status
-                    time.sleep(1)
+                    time.sleep(AUTHORIZATION_STATUS_CHECK_DELAY)
                     auth_status = safe_status_check(payment)
                     if auth_status:
                         logger.info(f"Auth status: {auth_status}")
@@ -369,7 +376,7 @@ def main():
                 elif status.startswith(b'3'):
                     logger.warning("Authorization declined by bank")
                     # Handle declined transaction - wait before retrying
-                    time.sleep(RETRY_DELAY)
+                    time.sleep(DECLINED_CARD_RETRY_DELAY)
                     
                 # Check if waiting for transaction result (code 9)
                 # This means card was approved and customer can dispense
@@ -585,14 +592,14 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
                 else:
                     # Button released - add a small delay before turning off
                     # This prevents rapid on/off cycling if the button bounces
-                    time.sleep(0.7)  # Brief delay for debouncing (prevents rapid cycling)
+                    time.sleep(MOTOR_OFF_DEBOUNCE_DELAY)
                     machine.control_motor(False)  # Turn motor OFF (stop dispensing)
                 
                 motor_error_count = 0  # Reset error counter on successful iteration
                 
                 # Small sleep to prevent CPU from spinning at 100% usage
                 # This loop runs very fast, so we add a tiny delay
-                time.sleep(0.1)
+                time.sleep(MOTOR_CONTROL_LOOP_DELAY)
                 
             except Exception as e:
                 motor_error_count += 1
@@ -602,7 +609,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
                     logger.error("Too many motor control errors - exiting dispensing mode")
                     raise MachineHardwareError("Motor control failed repeatedly")
                 
-                time.sleep(0.5)  # Wait before retrying
+                time.sleep(MOTOR_ERROR_RETRY_DELAY)
             
     except KeyboardInterrupt:
         logger.info("Dispensing interrupted")

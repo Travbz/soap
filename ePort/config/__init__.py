@@ -72,3 +72,22 @@ MAX_TRANSACTION_PRICE = 1000.0  # Maximum transaction price in dollars
 
 # Authorization configuration
 AUTH_AMOUNT_CENTS = 2000  # Default authorization amount in cents ($20.00)
+
+# Timing configuration (all values in seconds unless otherwise specified)
+# ePort communication delays
+EPORT_COMMAND_DELAY = 0.5  # Wait time after sending commands to ePort (status, reset, auth, transaction)
+EPORT_INIT_DELAY = 0.5  # Wait time for ePort device to initialize after serial connection
+
+# Machine control loop delays
+MOTOR_CONTROL_LOOP_DELAY = 0.1  # Sleep time in dispensing loop to prevent CPU spinning
+MOTOR_OFF_DEBOUNCE_DELAY = 0.7  # Delay before turning motor off when button released (prevents rapid cycling)
+MOTOR_ERROR_RETRY_DELAY = 0.5  # Wait time before retrying after motor control error
+
+# Button debouncing
+DONE_BUTTON_SOFTWARE_DEBOUNCE_DELAY = 0.01  # Software debounce check delay (10ms)
+DONE_BUTTON_HARDWARE_DEBOUNCE_MS = 500  # Hardware debounce time in milliseconds (GPIO bouncetime)
+
+# Status check and error handling delays
+AUTHORIZATION_STATUS_CHECK_DELAY = 1.0  # Wait time after authorization request before checking status
+POST_RESET_DELAY = 1.0  # Wait time after reset before requesting authorization
+DECLINED_CARD_RETRY_DELAY = 1.0  # Wait time before checking status again after declined card

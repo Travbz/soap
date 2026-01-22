@@ -5,7 +5,7 @@ Handles all communication with the ePort card reader device
 
 import time
 from typing import Optional
-from ..config import CRC_TABLE, RS, GS, CR
+from ..config import CRC_TABLE, RS, GS, CR, EPORT_COMMAND_DELAY
 
 
 class EPortProtocol:
@@ -88,7 +88,7 @@ class EPortProtocol:
         self.ser.write(command)
         
         # Wait a bit for the device to process and respond (serial communication takes time)
-        time.sleep(0.5)
+        time.sleep(EPORT_COMMAND_DELAY)
         
         # Read the response line and remove whitespace (strip newlines, etc.)
         return self.ser.readline().strip()
@@ -104,7 +104,7 @@ class EPortProtocol:
         # Command 3 is the ASCII character '3' (0x33) followed by carriage return
         command = bytearray([0x33, CR])  # '3' + CR
         self.ser.write(command)
-        time.sleep(0.5)  # Wait for reset to complete
+        time.sleep(EPORT_COMMAND_DELAY)  # Wait for reset to complete
     
     def request_authorization(self, amount_cents: int):
         """
@@ -137,7 +137,7 @@ class EPortProtocol:
         
         # Send the command to the ePort device via serial port
         self.ser.write(command)
-        time.sleep(0.5)  # Wait for device to process the authorization request
+        time.sleep(EPORT_COMMAND_DELAY)  # Wait for device to process the authorization request
     
     def send_transaction_result(self, quantity: int, price_cents: int, 
                                 item_id: str, description: str) -> bool:
@@ -194,7 +194,7 @@ class EPortProtocol:
         
         # Send the command to the ePort device
         self.ser.write(command)
-        time.sleep(0.5)  # Wait for device to process
+        time.sleep(EPORT_COMMAND_DELAY)  # Wait for device to process
         
         return True
     
@@ -214,7 +214,7 @@ class EPortProtocol:
         # Command 13 is "13" in ASCII: 0x31='1', 0x33='3'
         command = bytearray([0x31, 0x33, CR])  # "13" + CR
         self.ser.write(command)
-        time.sleep(0.5)
+        time.sleep(EPORT_COMMAND_DELAY)
         
         # Get the response by sending a STATUS command (the ePort returns the ID in status response)
         response = self.status()

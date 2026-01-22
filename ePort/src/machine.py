@@ -5,6 +5,7 @@ Handles GPIO, motors, sensors, and dispensing logic
 
 import time
 from typing import Callable, Optional, Tuple
+from ..config import DONE_BUTTON_SOFTWARE_DEBOUNCE_DELAY, DONE_BUTTON_HARDWARE_DEBOUNCE_MS
 
 
 class MachineController:
@@ -165,14 +166,12 @@ class MachineController:
         
         # Setup interrupt handler for done button
         # FALLING edge means the signal goes from HIGH to LOW (button pressed, connects to ground)
-        # bouncetime=500 means ignore any changes for 500ms after the first detection
-        #   This prevents false triggers from electrical "bounce" when a mechanical button is pressed
-        #   Increased from 300ms to 500ms for better debouncing
+        # bouncetime prevents false triggers from electrical "bounce" when a mechanical button is pressed
         self.gpio.add_event_detect(
             self.done_button_pin, 
             self.gpio.FALLING,  # Trigger on falling edge (HIGH → LOW transition)
             callback=lambda x: self._on_done_button(),  # Call our handler function
-            bouncetime=500  # Ignore changes for 500ms (prevents button bounce false triggers)
+            bouncetime=DONE_BUTTON_HARDWARE_DEBOUNCE_MS  # Hardware debounce from config
         )
     
     def _on_done_button(self):
@@ -188,7 +187,7 @@ class MachineController:
         """
         # Software debouncing: verify button is actually pressed (not just noise)
         # Wait a tiny bit then check again to filter out brief spikes
-        time.sleep(0.01)  # 10ms delay
+        time.sleep(DONE_BUTTON_SOFTWARE_DEBOUNCE_DELAY)
         if not self.is_done_button_pressed():
             # Button not actually pressed - false trigger, ignore it
             return
