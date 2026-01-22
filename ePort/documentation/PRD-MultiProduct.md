@@ -2,7 +2,6 @@
 
 **Version:** 1.0  
 **Status:** Draft  
-**Author:** AI Assistant  
 **Date:** January 2026
 
 ---
