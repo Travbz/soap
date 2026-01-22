@@ -57,7 +57,7 @@ Add visual guidance system to display graphics, videos, and instructions to cust
 ---
 
 ### US-3: Owner Updates Display Content
-**As a** store owner  
+**As a** company owner  
 **I want to** replace display content by uploading new image files  
 **So that** I can update promotions or instructions without technical help
 

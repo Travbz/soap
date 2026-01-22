@@ -62,7 +62,7 @@ Enable the vending machine to dispense multiple products in a single transaction
 ---
 
 ### US-2: Store Owner Adds New Product
-**As a** store owner  
+**As a** company owner  
 **I want to** add a new product to the machine by editing a config file  
 **So that** I don't need to modify code or redeploy the application
 
