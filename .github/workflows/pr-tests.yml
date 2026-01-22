@@ -22,19 +22,24 @@ jobs:
       
       - name: Install Python 3.7
         run: |
-          uv python install 3.7
+          sudo apt update
+          sudo apt install -y software-properties-common
+          sudo add-apt-repository -y ppa:deadsnakes/ppa
+          sudo apt update
+          sudo apt install -y python3.7 python3.7-venv python3.7-dev
+          python3.7 --version
       
       - name: Install dependencies
         run: |
           # Install pyserial for tests (RPi.GPIO not needed - tests use mocks)
-          uv pip install pyserial --python 3.7
+          uv pip install pyserial --python python3.7
       
       - name: Run payment protocol tests
         run: |
-          uv run --python 3.7 -m ePort.tests.test_payment
+          python3.7 -m ePort.tests.test_payment
       
       - name: Check for syntax errors
         run: |
-          uv run --python 3.7 -m py_compile ePort/main.py
-          uv run --python 3.7 -m py_compile ePort/src/machine.py
-          uv run --python 3.7 -m py_compile ePort/src/payment.py
+          python3.7 -m py_compile ePort/main.py
+          python3.7 -m py_compile ePort/src/machine.py
+          python3.7 -m py_compile ePort/src/payment.py
