@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: |
           # Install pyserial for tests (RPi.GPIO not needed - tests use mocks)
-          uv pip install pyserial --python python3.7 --system
+          sudo uv pip install pyserial --python python3.7 --system
       
       - name: Run payment protocol tests
         run: |
