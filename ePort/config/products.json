@@ -10,6 +10,17 @@
       "flowmeter_pin": 24,
       "button_pin": 4,
       "pulses_per_unit": 5.4
+    },
+    {
+      "id": "soap_dish",
+      "name": "Dish Soap",
+      "description": "Powerful dish cleaning soap",
+      "price_per_unit": 0.12,
+      "unit": "oz",
+      "motor_pin": 18,
+      "flowmeter_pin": 25,
+      "button_pin": 23,
+      "pulses_per_unit": 5.2
     }
   ]
 }
