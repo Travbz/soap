@@ -1,428 +1,139 @@
 # Testing Guide
 
-This directory contains tests for the vending machine controller code. Tests allow you to verify that the code works correctly **without needing actual hardware** (Raspberry Pi, GPIO pins, ePort device, etc.).
+Quick guide to running tests for the vending machine controller.
 
-## What are Tests?
+---
 
-Tests are small programs that automatically check if your code works as expected. They:
-- **Verify functionality** - Make sure code does what it's supposed to do
-- **Catch bugs early** - Find problems before deploying to the actual machine
-- **Run without hardware** - Test payment processing logic without a card reader
-- **Provide confidence** - Know your code works before using it in production
+## Test Suites
 
-## Prerequisites
+We have **two test suites** (32 tests total):
 
-Before running tests, you need Python 3.7 or higher installed on your computer.
+### 1. Payment Protocol Tests (`test_payment.py`)
+**7 tests** - ePort credit card communication
 
-### Check Python Version
+- CRC16 checksum calculation
+- Status, reset, authorization commands
+- Transaction result
+- Transaction ID retrieval
 
-Open a terminal (Command Prompt on Windows, Terminal on Mac/Linux) and run:
+### 2. Multi-Product System Tests (`test_multi_product.py`)
+**25 tests** - Product management and transactions
 
-```bash
-python3 --version
-```
+- **TestProduct** (5 tests) - Product validation, pricing
+- **TestProductManager** (11 tests) - Config loading, duplicate detection
+- **TestTransactionTracker** (9 tests) - Item tracking, totals, summaries
 
-You should see something like `Python 3.7.0` or higher. If not, install Python from [python.org](https://www.python.org/downloads/).
-
-### Required Libraries
-
-The tests use **mocks** (fake versions) of hardware, so you don't need to install GPIO or serial libraries for testing. However, if you want to use `pytest` (optional but recommended), install it:
-
-```bash
-pip3 install pytest
-```
-
-**Note**: The tests can run without `pytest` - they work with plain Python too!
-
-## Setup Instructions
-
-### Step 1: Navigate to Project Directory
-
-Open a terminal and navigate to the project root directory:
-
-```bash
-cd /path/to/yfi-scanner
-```
-
-Replace `/path/to/yfi-scanner` with the actual path where you cloned/downloaded the project.
-
-### Step 2: Verify Tests Can Run
-
-Make sure you can import the test file:
-
-```bash
-python3 ePort/tests/test_payment.py --help
-```
-
-If you see output (or no error), you're ready to run tests!
+---
 
 ## Running Tests
 
-You have two options for running tests:
-
-### Option 1: Run Directly (No Additional Setup)
-
-Run the test file directly with Python:
+### Run All Tests (Recommended)
 
 ```bash
-python3 ePort/tests/test_payment.py
+# Payment protocol tests (7 tests)
+python3 -m ePort.tests.test_payment
+
+# Multi-product system tests (25 tests)
+python3 -m ePort.tests.test_multi_product
 ```
 
-This will run all tests and show you the results.
+### Expected Output
 
-**Example Output:**
+**Payment Tests:**
 ```
 ============================================================
 Testing ePort Payment Protocol
-============================================================
-
-Running: CRC Calculation...
-CRC Test: Calculated=E558, Expected=E558
-✓ CRC calculation test passed!
-
-Running: Status Command...
-✓ Status response: b'6'
-✓ Status command test passed!
-
-Running: Reset Command...
-✓ Reset command test passed!
-
-Running: Request Authorization...
-✓ Authorization request command sent: $20.00
-✓ Command bytes written: 10 bytes
-✓ Request authorization test passed!
-
-Running: Transaction Result Command...
-✓ Transaction result command test passed!
-✓ Command bytes written: 29 bytes
-
-Running: Get Transaction ID...
-✓ Transaction ID retrieved: 12345678
-✓ Get transaction ID test passed!
-
-Running: Get Transaction ID (No Response)...
-✓ Get transaction ID returns None for invalid response
-✓ Get transaction ID (no response) test passed!
-
 ============================================================
 Results: 7 passed, 0 failed
 ============================================================
 ```
 
-### Option 2: Using pytest (Recommended)
-
-If you installed `pytest`, you can run tests with more detailed output:
-
-```bash
-# Run all tests
-pytest ePort/tests/ -v
-
-# Run a specific test file
-pytest ePort/tests/test_payment.py -v
-
-# Run with more details
-pytest ePort/tests/test_payment.py -vv
+**Multi-Product Tests:**
+```
+============================================================
+Testing Multi-Product System
+============================================================
+Results: 25 tests, 0 failures, 0 errors
+============================================================
 ```
 
-**Example Output:**
-```
-============================= test session starts =============================
-platform darwin -- Python 3.12.9, pytest-7.4.4
-collected 7 items
+---
 
-ePort/tests/test_payment.py::test_crc_calculation PASSED           [ 14%]
-ePort/tests/test_payment.py::test_status_command PASSED            [ 28%]
-ePort/tests/test_payment.py::test_reset_command PASSED             [ 42%]
-ePort/tests/test_payment.py::test_request_authorization PASSED     [ 57%]
-ePort/tests/test_payment.py::test_transaction_result_command PASSED [ 71%]
-ePort/tests/test_payment.py::test_get_transaction_id PASSED        [ 85%]
-ePort/tests/test_payment.py::test_get_transaction_id_no_response PASSED [100%]
+## What's Tested
 
-======================== 7 passed in 1.55s =========================
-```
+### Payment Protocol
+- **CRC16 calculation** - Data integrity for serial communication
+- **Command formatting** - Status, reset, authorization, transaction result
+- **Response parsing** - Transaction IDs, status codes
+- **Error handling** - Invalid responses
 
-## Understanding the Tests
+### Multi-Product System
+- **Product validation** - Prices, pins, calibration values
+- **Config loading** - JSON parsing, duplicate detection
+- **Transaction tracking** - Item lists, running totals, summaries
+- **Price calculations** - Rounding, multi-item totals
 
-The test suite includes the following tests:
+---
 
-### 1. CRC Calculation Test
+## What's NOT Tested
 
-**What it does:**
-- Tests the CRC16 checksum calculation algorithm
-- Verifies it matches the specification from the ePort Protocol PDF
+These require hardware or complex integration mocking:
+- `MachineController` GPIO operations
+- `main.py` orchestration logic
+- Timeout behavior
+- Product switching flow
 
-**Why it matters:**
-- CRC (Cyclic Redundancy Check) is used to verify data integrity
-- **This was the bug that caused the original failure** - the CRC calculation was wrong
-- If this test passes, your payment commands will work correctly
+**Test these manually on Raspberry Pi hardware.**
 
-**What it checks:**
-- Calculates CRC for the example from the PDF: AUTH_REQ for $3.50 (21RS350)
-- Expected CRC: E558
-- If calculated CRC matches expected, test passes ✓
-
-### 2. Status Command Test
-
-**What it does:**
-- Tests communication with the ePort device using the STATUS command
-- Uses a mock (fake) serial connection instead of real hardware
-
-**Why it matters:**
-- Status commands are sent repeatedly to check device state
-- This is the "heartbeat" of the system
-
-**What it checks:**
-- Can send STATUS command (command 1)
-- Can read the response correctly
-- Response format matches protocol specification
-
-### 3. Reset Command Test
-
-**What it does:**
-- Tests the RESET command (command 3)
-- Verifies the command can be sent to the ePort device
-
-**Why it matters:**
-- Reset is used to clear device state and prepare for new transactions
-- Must work correctly for the machine to function
-
-**What it checks:**
-- RESET command can be constructed and sent
-- No errors occur during command transmission
-
-### 4. Request Authorization Test
-
-**What it does:**
-- Tests the AUTH_REQ command (command 21) for requesting credit card authorization
-- Verifies the authorization command is constructed correctly with CRC
-- Simulates requesting authorization for a transaction amount
-
-**Why it matters:**
-- Authorization is the first step in every transaction
-- Customer swipes/inserts card after authorization is requested
-- Command must be correctly formatted or the ePort device will reject it
-- This is a critical function used in the main application loop
-
-**What it checks:**
-- Command format matches protocol specification (starts with "21", includes RS separator)
-- Authorization amount is correctly encoded in the command
-- CRC is calculated and included correctly
-- Command ends with carriage return (CR)
-- Command is sent to serial port
-
-### 5. Transaction Result Command Test
-
-**What it does:**
-- Tests the TRANSACTION_RESULT command (command 22)
-- This is the **most complex command** - it includes CRC calculation
-- Simulates completing a sale transaction
-
-**Why it matters:**
-- This command completes a sale after product is dispensed
-- **This was the 7th command that was failing** in the original code
-- Must include correct CRC or the payment processor will reject it
-
-**What it checks:**
-- Command format matches protocol specification
-- All fields are correctly formatted (quantity, price, item ID, description)
-- CRC is calculated and included correctly
-- Command bytes are generated properly
-
-### 6. Get Transaction ID Test
-
-**What it does:**
-- Tests the get_transaction_id() method (command 13)
-- Verifies transaction ID can be retrieved from the ePort device
-- Tests parsing of transaction ID response
-
-**Why it matters:**
-- Transaction IDs are useful for record-keeping and troubleshooting
-- Helps track individual sales transactions
-- Not critical for machine operation, but valuable for reporting
-
-**What it checks:**
-- Command 13 is sent correctly
-- Transaction ID response (format: "17" + RS + Transaction_ID + CR) is parsed correctly
-- Transaction ID is extracted and returned as a string
-- Handles valid transaction ID responses properly
-
-### 7. Get Transaction ID (No Response) Test
-
-**What it does:**
-- Tests edge case where get_transaction_id() receives an invalid response
-- Verifies the method handles unexpected response formats gracefully
-
-**Why it matters:**
-- Real hardware can sometimes return unexpected responses
-- Code should handle errors gracefully without crashing
-- Returns None when response doesn't match expected format
-
-**What it checks:**
-- Returns None when response doesn't start with "17"
-- Handles invalid response formats without errors
-- Method doesn't crash on unexpected input
-
-## Test Results Explained
-
-### Passing Tests ✓
-
-When a test **passes**, it means:
-- The code works correctly for that function
-- The implementation matches the specification
-- No bugs detected for that feature
-
-**Good news:** All tests should pass! If they do, your code is ready to use.
-
-### Failing Tests ✗
-
-If a test **fails**, you'll see:
-- An error message explaining what went wrong
-- Which assertion failed
-- Expected vs. actual values
-
-**What to do:**
-1. Read the error message carefully
-2. Check which test failed
-3. Look at the code being tested
-4. Fix the issue and run tests again
-
-### Common Issues
-
-#### Import Errors
-
-**Error:**
-```
-ModuleNotFoundError: No module named 'ePort'
-```
-
-**Solution:**
-- Make sure you're running tests from the project root directory
-- The project root should contain the `ePort/` folder
-
-#### Syntax Errors
-
-**Error:**
-```
-SyntaxError: invalid syntax
-```
-
-**Solution:**
-- Check your Python version: `python3 --version`
-- Make sure you're using Python 3.7 or higher
-- Verify the test file wasn't accidentally modified
-
-## What Tests DON'T Test
-
-These tests use **mocks** (fake hardware), so they don't test:
-
-- ❌ Actual GPIO pin operations (need real Raspberry Pi)
-- ❌ Real serial communication with ePort device
-- ❌ Physical motor control
-- ❌ Actual button presses or sensor readings
-- ❌ Hardware wiring or connections
-
-**To test with real hardware:**
-- Deploy the code to a Raspberry Pi
-- Connect all hardware properly
-- Test with actual card transactions (test mode)
-
-## Understanding Mocks
-
-**What are mocks?**
-- Fake versions of hardware components
-- Simulate real hardware behavior
-- Allow testing without physical devices
-
-**MockGPIO** (`tests/mocks.py`):
-- Fake GPIO pins and operations
-- Simulates button presses and motor control
-- No real hardware needed
-
-**MockSerial** (`tests/mocks.py`):
-- Fake serial port connection
-- Simulates ePort device responses
-- No real card reader needed
-
-**Why use mocks?**
-- Test code logic without hardware
-- Run tests on any computer
-- Test edge cases safely
-- Faster than hardware testing
-
-## Running Tests During Development
-
-### Before Making Changes
-
-1. **Run tests first:**
-   ```bash
-   python3 ePort/tests/test_payment.py
-   ```
-2. **Verify all tests pass** - This is your baseline
-3. **Make your changes** to the code
-4. **Run tests again** - Make sure you didn't break anything
-
-### After Making Changes
-
-Always run tests after:
-- Modifying payment protocol code
-- Changing CRC calculation
-- Updating command formats
-- Fixing bugs
-
-**Good practice:** Run tests frequently during development to catch bugs early!
+---
 
 ## Troubleshooting
 
-### Tests Won't Run
-
-**Problem:** `python3: command not found`
-
-**Solution:**
-- Install Python 3 from [python.org](https://www.python.org/downloads/)
-- Or try `python` instead of `python3` (Windows)
-- Make sure Python is in your system PATH
-
 ### Import Errors
+```
+ModuleNotFoundError: No module named 'ePort'
+```
+**Fix:** Run from project root (directory containing `ePort/` folder)
 
-**Problem:** Can't import ePort modules
+### Wrong Python Version
+```
+SyntaxError: invalid syntax
+```
+**Fix:** Use Python 3.7+
+```bash
+python3 --version  # Should be 3.7.0 or higher
+```
 
-**Solution:**
-- Make sure you're in the project root directory
-- Check that `ePort/` folder exists
-- Verify `ePort/__init__.py` exists
+### Tests Fail
+1. Read error message carefully
+2. Check which test failed
+3. Look at the code being tested
+4. Fix issue and re-run
 
-### Tests Fail But Code Looks Right
+---
 
-**Problem:** Tests fail but you think the code is correct
+## Adding New Tests
 
-**Solution:**
-- Read the error message carefully
-- Check expected vs. actual values
-- Verify you understand what the test is checking
-- Look at the protocol specification if needed
-- Ask for help if stuck!
+**When creating new test files:**
 
-## Next Steps
+1. Create: `ePort/tests/test_[feature].py`
+2. Update: `.github/workflows/pr-tests.yml`
+3. Add test run command to CI/CD
+4. Verify in GitHub Actions
 
-After tests pass:
+See `.cursorrules` for detailed requirements.
 
-1. ✅ **Code is verified** - Payment logic works correctly
-2. 🚀 **Ready for deployment** - Can install on Raspberry Pi
-3. 🔧 **Deploy to hardware** - Follow deployment guide
-4. 🧪 **Test with real hardware** - Use test mode with real card reader
+---
 
-## Additional Resources
+## CI/CD Integration
 
-- **Protocol Documentation:** `../docs/Serial ePort Protocol -Rev 18.pdf`
-- **Main README:** `../../README.md`
-- **Deployment Guide:** `../deployment.md`
+Tests run automatically on every PR via GitHub Actions:
+- Python 3.7 environment (matches Raspberry Pi)
+- Both test suites must pass
+- Syntax checks on all source files
 
-## Summary
+See `.github/workflows/pr-tests.yml` for configuration.
 
-- **Run tests:** `python3 ePort/tests/test_payment.py`
-- **All tests should pass** before deploying code
-- **Tests use mocks** - no hardware needed
-- **CRC test is critical** - this was the original bug
-- **Transaction Result test** - this was the failing command
+---
 
-If all tests pass, your code is ready! 🎉
+**All 32 tests passing = Code ready for deployment** ✅
