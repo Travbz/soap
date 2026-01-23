@@ -1,0 +1,15 @@
+{
+  "products": [
+    {
+      "id": "soap_hand",
+      "name": "Hand Soap",
+      "description": "Gentle hand wash soap",
+      "price_per_unit": 0.15,
+      "unit": "oz",
+      "motor_pin": 17,
+      "flowmeter_pin": 24,
+      "button_pin": 4,
+      "pulses_per_unit": 5.4
+    }
+  ]
+}

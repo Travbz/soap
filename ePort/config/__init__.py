@@ -91,3 +91,8 @@ DONE_BUTTON_HARDWARE_DEBOUNCE_MS = 500  # Hardware debounce time in milliseconds
 AUTHORIZATION_STATUS_CHECK_DELAY = 1.0  # Wait time after authorization request before checking status
 POST_RESET_DELAY = 1.0  # Wait time after reset before requesting authorization
 DECLINED_CARD_RETRY_DELAY = 1.0  # Wait time before checking status again after declined card
+
+# Multi-product configuration
+PRODUCTS_CONFIG_PATH = '/Users/travops/soap/ePort/config/products.json'  # Path to products configuration file
+MAX_ITEMS_PER_TRANSACTION = 10  # Maximum number of different products per transaction (prevent abuse)
+PRODUCT_SWITCH_DELAY = 0.5  # Delay when switching between products in seconds (prevents rapid switching)
