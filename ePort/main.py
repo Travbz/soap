@@ -20,10 +20,11 @@ except ImportError:
 
 from .src.payment import EPortProtocol
 from .src.machine import MachineController
+from .src.product_manager import ProductManager
+from .src.transaction_tracker import TransactionTracker
 from .config import (
     SERIAL_PORT, SERIAL_BAUDRATE, SERIAL_TIMEOUT,
-    MOTOR_PIN, FLOWMETER_PIN, PRODUCT_BUTTON_PIN, DONE_BUTTON_PIN,
-    PRODUCT_PRICE, PRODUCT_UNIT, FLOWMETER_PULSES_PER_OUNCE,
+    DONE_BUTTON_PIN,
     MAX_RETRIES, RETRY_DELAY, STATUS_POLL_INTERVAL, SERIAL_OPEN_RETRIES,
     MAX_CONSECUTIVE_ERRORS, MAX_MOTOR_ERRORS, MAX_TRANSACTION_PRICE,
     AUTH_AMOUNT_CENTS,
@@ -34,7 +35,13 @@ from .config import (
     DECLINED_CARD_RETRY_DELAY,
     MOTOR_CONTROL_LOOP_DELAY,
     MOTOR_OFF_DEBOUNCE_DELAY,
-    MOTOR_ERROR_RETRY_DELAY
+    MOTOR_ERROR_RETRY_DELAY,
+    PRODUCTS_CONFIG_PATH,
+    PRODUCT_SWITCH_DELAY,
+    MAX_ITEMS_PER_TRANSACTION,
+    DISPENSING_INACTIVITY_TIMEOUT,
+    DISPENSING_MAX_SESSION_TIME,
+    INACTIVITY_WARNING_TIME
 )
 
 # Configure logging
@@ -290,8 +297,20 @@ def main():
     gpio = None
     payment = None
     machine = None
+    product_manager = None
     
     try:
+        # Initialize product manager
+        logger.info("Loading product configuration...")
+        try:
+            product_manager = ProductManager(PRODUCTS_CONFIG_PATH)
+            products = product_manager.list_products()
+            logger.info(f"Loaded {len(products)} products:")
+            for product in products:
+                logger.info(f"  - {product.name}: ${product.price_per_unit}/{product.unit}")
+        except Exception as e:
+            raise VendingMachineError(f"Failed to load products: {e}")
+        
         # Initialize GPIO
         logger.info("Initializing GPIO...")
         gpio = setup_gpio()
@@ -304,27 +323,21 @@ def main():
         logger.info("Initializing payment protocol handler...")
         payment = EPortProtocol(ser)
         
-        # Initialize machine controller
+        # Initialize machine controller with all products
         logger.info("Initializing machine controller...")
         try:
             machine = MachineController(
                 gpio=gpio,
-                motor_pin=MOTOR_PIN,
-                flowmeter_pin=FLOWMETER_PIN,
-                product_button_pin=PRODUCT_BUTTON_PIN,
-                done_button_pin=DONE_BUTTON_PIN,
-                price_per_ounce=PRODUCT_PRICE,
-                pulses_per_ounce=FLOWMETER_PULSES_PER_OUNCE,
-                product_unit=PRODUCT_UNIT
+                products=products,
+                done_button_pin=DONE_BUTTON_PIN
             )
             logger.info("Machine controller initialized successfully")
         except Exception as e:
             raise MachineHardwareError(f"Failed to initialize machine controller: {e}")
         
         logger.info("=" * 60)
-        logger.info("Vending machine controller started")
-        logger.info(f"Product: {PRODUCT_UNIT}")
-        logger.info(f"Price: ${PRODUCT_PRICE}/ounce")
+        logger.info("Multi-Product Vending Machine Controller Started")
+        logger.info(f"Available products: {', '.join(p.name for p in products)}")
         logger.info("=" * 60)
         
         # Main loop - continuously monitor for customers
@@ -383,7 +396,7 @@ def main():
                 elif status == b'9':
                     logger.info("Authorization approved - enabling dispensing")
                     try:
-                        handle_dispensing(machine, payment)
+                        handle_dispensing(machine, payment, product_manager)
                     except KeyboardInterrupt:
                         logger.info("Dispensing interrupted by user")
                         raise
@@ -434,110 +447,166 @@ def main():
         logger.info("Vending machine controller stopped")
 
 
-def handle_dispensing(machine: MachineController, payment: EPortProtocol):
+def handle_dispensing(machine: MachineController, payment: EPortProtocol, 
+                     product_manager: ProductManager):
     """
-    Handle the dispensing phase after authorization is approved
+    Handle the dispensing phase after authorization is approved (Multi-Product)
     
     This function manages the entire dispensing session after a card is authorized.
-    The customer can press and hold the product button to dispense, and press the
-    done button when finished. This function runs until the transaction is complete.
+    The customer can select multiple products, dispense them, and press done when finished.
     
     Flow:
-    1. Set up callbacks for flowmeter pulses and done button
-    2. Enter a loop that monitors the product button and controls the motor
-    3. When done button is pressed, send transaction result to payment processor
-    4. Reset machine state for next customer
+    1. Create TransactionTracker to track all items dispensed
+    2. Set up callbacks for flowmeter pulses, product switching, and done button
+    3. Enter a loop that monitors product buttons and controls motors
+    4. When product button is pressed, select that product and dispense
+    5. When done button is pressed, send itemized transaction result
+    6. Reset machine state for next customer
     
     Args:
         machine: MachineController instance (handles GPIO, motors, sensors)
         payment: EPortProtocol instance (communicates with ePort card reader)
+        product_manager: ProductManager instance (product configurations)
     
     Raises:
         PaymentProtocolError: If transaction completion fails
         MachineHardwareError: If hardware operations fail
     """
     
+    # Transaction tracker - records all items dispensed
+    transaction = TransactionTracker()
+    
+    # Track current product being dispensed
+    current_product_ounces = 0.0
+    last_product_switch_time = 0.0
+    
+    # Timeout tracking
+    session_start_time = time.time()
+    last_activity_time = time.time()
+    warning_displayed = False
+    
     # Flag to signal that transaction is complete or cancelled
-    # This allows the callback to exit the dispensing loop
     transaction_complete = False
     
     def on_flowmeter_pulse(ounces: float, price: float):
         """
-        Callback function called automatically each time the flowmeter sends a pulse
-        
-        This runs in the background as product flows. We just log it for debugging,
-        but the MachineController already tracks the total ounces and price internally.
+        Callback for flowmeter pulses - tracks current product dispensing
         
         Args:
-            ounces: Total ounces dispensed so far
-            price: Total price calculated so far (in dollars)
+            ounces: Ounces dispensed for current product
+            price: Price for current product
         """
+        nonlocal current_product_ounces
         try:
-            # Log each pulse in real-time (use debug level to keep output clean)
-            # Change to logger.info() if you want to see flowmeter output during operation
-            logger.debug(f"Flowmeter pulse: {ounces:.3f} oz - ${price:.2f}")
+            current_product_ounces = ounces
+            product = machine.get_current_product()
+            if product:
+                logger.debug(f"{product.name}: {ounces:.3f} {product.unit} - ${price:.2f}")
         except Exception as e:
             logger.error(f"Error in flowmeter callback: {e}")
     
-    def on_done_button():
+    def on_product_switch(product):
         """
-        Callback function called automatically when customer presses the "done" button
+        Callback when customer switches to a different product
         
-        This is where we complete the transaction. The customer has finished dispensing
-        product and pressed "done", so we:
-        1. Get the final ounces and price
-        2. Validate the transaction (make sure product was dispensed, price is reasonable)
-        3. Send the transaction result to the payment processor to charge the card
-        4. Reset the machine for the next customer
+        Records the previous product's amount and resets for new product.
         
-        This function runs inside a GPIO interrupt handler, so it needs to handle
-        errors gracefully without crashing the main loop.
+        Args:
+            product: New product being selected
         """
-        # Declare nonlocal at the top of the function (required by Python)
-        nonlocal transaction_complete
+        nonlocal current_product_ounces, last_product_switch_time
         
         try:
-            # Get the final dispense information (total ounces and price)
-            ounces, price = machine.get_dispense_info()
+            # Record previous product if any was dispensed
+            prev_product = machine.get_current_product()
+            if prev_product and current_product_ounces > 0:
+                price = prev_product.calculate_price(current_product_ounces)
+                transaction.add_item(
+                    product_id=prev_product.id,
+                    product_name=prev_product.name,
+                    quantity=current_product_ounces,
+                    unit=prev_product.unit,
+                    price=price
+                )
+                logger.info(f"Recorded: {prev_product.name} {current_product_ounces:.2f} {prev_product.unit} - ${price:.2f}")
             
-            # Safety check: If no product was dispensed (price = 0), don't charge anything
-            if price <= 0:
-                logger.warning("Done button pressed but no product dispensed - cancelling transaction")
+            # Switch to new product
+            logger.info(f"Switching to: {product.name}")
+            print(f"\n→ Now dispensing: {product.name}")
+            current_product_ounces = 0.0
+            last_product_switch_time = time.time()
+            
+        except Exception as e:
+            logger.error(f"Error in product switch callback: {e}")
+    
+    def on_done_button():
+        """
+        Callback when customer presses "done" - complete multi-product transaction
+        
+        Records final product, validates transaction, sends itemized result to payment processor.
+        """
+        nonlocal transaction_complete, current_product_ounces
+        
+        try:
+            # Record final product if any was being dispensed
+            current_product = machine.get_current_product()
+            if current_product and current_product_ounces > 0:
+                price = current_product.calculate_price(current_product_ounces)
+                transaction.add_item(
+                    product_id=current_product.id,
+                    product_name=current_product.name,
+                    quantity=current_product_ounces,
+                    unit=current_product.unit,
+                    price=price
+                )
+                logger.info(f"Recorded: {current_product.name} {current_product_ounces:.2f} {current_product.unit} - ${price:.2f}")
+            
+            # Check if anything was dispensed
+            if transaction.is_empty():
+                logger.warning("Done button pressed but no products dispensed - cancelling transaction")
                 machine.reset()
-                # Signal that transaction is cancelled so the dispensing loop exits
                 transaction_complete = True
                 return
             
-            # Display transaction details to customer (clean output, no timestamps)
-            print(f"\nOunces: {ounces:.3f}")
-            print(f"Price: ${price:.2f}")
-            
-            # Safety check: Prevent charging more than MAX_TRANSACTION_PRICE (prevents errors/abuse)
-            if price > MAX_TRANSACTION_PRICE:
-                logger.error(f"Price too high: ${price:.2f} - refusing transaction")
+            # Check if too many items (prevent abuse)
+            if transaction.get_item_count() > MAX_ITEMS_PER_TRANSACTION:
+                logger.error(f"Too many items ({transaction.get_item_count()}) - refusing transaction")
                 machine.reset()
-                # Signal that transaction is cancelled so the dispensing loop exits
                 transaction_complete = True
                 return
             
-            # Convert price from dollars to cents for the payment processor
-            # Example: $0.35 → 35 cents
-            price_cents = int(round(price * 100))
+            # Get total price
+            total_price = transaction.get_total()
             
-            # Send the transaction result to the ePort/payment processor
-            # This tells them "charge $X.XX for this transaction"
-            # If this fails, the transaction didn't complete properly
+            # Display itemized transaction to customer
+            print("\n" + "=" * 40)
+            print(transaction.get_summary())
+            print("=" * 40)
+            
+            # Safety check: Prevent charging more than MAX_TRANSACTION_PRICE
+            if total_price > MAX_TRANSACTION_PRICE:
+                logger.error(f"Price too high: ${total_price:.2f} - refusing transaction")
+                machine.reset()
+                transaction_complete = True
+                return
+            
+            # Convert to cents for payment processor
+            price_cents = transaction.get_total_cents()
+            
+            # Send transaction result with itemized description
+            description = transaction.get_eport_description()
             if not safe_transaction_result(
                 payment=payment,
-                quantity=1,  # We always sell 1 "item" (the dispensed amount)
-                price_cents=price_cents,  # Final price in cents
-                item_id="1",  # Item identifier (used for reporting)
-                description=PRODUCT_UNIT[:30]  # Description, max 30 bytes
+                quantity=transaction.get_item_count(),
+                price_cents=price_cents,
+                item_id="1",
+                description=description
             ):
                 raise PaymentProtocolError("Failed to send transaction result")
             
-            # Try to get the transaction ID (useful for records, but not critical)
-            # If this fails, we don't want to fail the whole transaction
+            logger.info(f"Transaction complete: {transaction.get_compact_summary()}")
+            
+            # Try to get transaction ID
             try:
                 transaction_id = payment.get_transaction_id()
                 if transaction_id:
@@ -545,17 +614,14 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
             except Exception as e:
                 logger.warning(f"Could not retrieve transaction ID: {e}")
             
-            # Reset the machine state (clear counters, remove callbacks)
-            # This prepares the machine for the next customer
+            # Reset machine
             machine.reset()
-            print("Machine reset - ready for next customer\n")
+            print("\nThank you! Machine ready for next customer\n")
             logger.debug("Machine reset - ready for next customer")
             
-            # Signal that transaction is complete so the dispensing loop exits
             transaction_complete = True
             
         except PaymentProtocolError:
-            # Re-raise payment protocol errors
             raise
         except Exception as e:
             logger.error(f"Error in done button callback: {e}")
@@ -566,39 +632,96 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol):
                 logger.error(f"Error resetting machine after callback error: {reset_error}")
             raise MachineHardwareError(f"Error completing transaction: {e}")
     
-    # Start dispensing mode - set up callbacks and reset counters
+    # Start dispensing mode - set up callbacks
     try:
         machine.start_dispensing(
-            flowmeter_callback=on_flowmeter_pulse,  # Called each time flowmeter pulses
-            done_callback=on_done_button            # Called when customer presses "done"
+            flowmeter_callback=on_flowmeter_pulse,
+            done_callback=on_done_button,
+            product_switch_callback=on_product_switch
         )
-        logger.info("Dispensing enabled - press button to dispense")
+        print("\n" + "=" * 40)
+        print("SELECT A PRODUCT TO BEGIN")
+        products = product_manager.list_products()
+        for product in products:
+            print(f"  • {product.name} (${product.price_per_unit}/{product.unit})")
+        print("Press DONE when finished")
+        print("=" * 40 + "\n")
+        logger.info("Dispensing enabled - waiting for product selection")
     except Exception as e:
         raise MachineHardwareError(f"Failed to start dispensing mode: {e}")
     
-    # Main control loop - continuously monitor product button and control motor
-    # This loop runs until the customer presses "done" (which triggers the callback
-    # and sets transaction_complete = True) or an error occurs
+    # Main control loop - monitor product buttons and control motors
     motor_error_count = 0
     
     try:
         while not transaction_complete:
             try:
-                # Control motor based on product button state
-                # When customer presses and holds button: motor runs (dispenses product)
-                # When customer releases button: motor stops
-                if machine.is_product_button_pressed():
-                    machine.control_motor(True)  # Turn motor ON (dispense product)
+                current_time = time.time()
+                
+                # Check for max session timeout (5 minutes total)
+                session_duration = current_time - session_start_time
+                if session_duration > DISPENSING_MAX_SESSION_TIME:
+                    logger.warning(f"Max session time exceeded ({session_duration:.0f}s) - auto-completing")
+                    print("\n⏱️  Maximum session time reached - completing transaction...")
+                    # Trigger done button callback to complete transaction
+                    on_done_button()
+                    break
+                
+                # Check for inactivity timeout
+                inactivity_duration = current_time - last_activity_time
+                
+                # Display warning at 45 seconds of inactivity
+                if inactivity_duration > INACTIVITY_WARNING_TIME and not warning_displayed:
+                    print(f"\n⚠️  WARNING: {DISPENSING_INACTIVITY_TIMEOUT - inactivity_duration:.0f} seconds until auto-complete")
+                    print("   Press DONE or select a product to continue")
+                    logger.warning(f"Inactivity warning displayed ({inactivity_duration:.0f}s)")
+                    warning_displayed = True
+                
+                # Auto-complete transaction after 60 seconds of inactivity
+                if inactivity_duration > DISPENSING_INACTIVITY_TIMEOUT:
+                    logger.warning(f"Inactivity timeout ({inactivity_duration:.0f}s) - auto-completing")
+                    print("\n⏱️  Inactivity timeout - completing transaction...")
+                    # Trigger done button callback to complete transaction
+                    on_done_button()
+                    break
+                
+                # Check which product button is pressed
+                pressed_product = machine.get_pressed_product_button()
+                
+                if pressed_product:
+                    # Product button is pressed - reset inactivity timer
+                    last_activity_time = current_time
+                    warning_displayed = False  # Reset warning flag
+                    
+                    current_product = machine.get_current_product()
+                    
+                    # If switching products, enforce delay and record previous
+                    if current_product != pressed_product:
+                        time_since_switch = current_time - last_product_switch_time
+                        if time_since_switch < PRODUCT_SWITCH_DELAY:
+                            # Too soon after last switch, ignore
+                            time.sleep(MOTOR_CONTROL_LOOP_DELAY)
+                            continue
+                        
+                        # Switch to new product
+                        if machine.select_product(pressed_product):
+                            # Product switched - setup flowmeter for new product
+                            machine.setup_flowmeter_for_product(pressed_product)
+                            # Callback will record previous product
+                    
+                    # Turn on motor for current product
+                    machine.control_motor(True)
                 else:
-                    # Button released - add a small delay before turning off
-                    # This prevents rapid on/off cycling if the button bounces
-                    time.sleep(MOTOR_OFF_DEBOUNCE_DELAY)
-                    machine.control_motor(False)  # Turn motor OFF (stop dispensing)
+                    # No button pressed - turn off motor
+                    if machine.get_current_product():
+                        time.sleep(MOTOR_OFF_DEBOUNCE_DELAY)
+                        machine.control_motor(False)
                 
-                motor_error_count = 0  # Reset error counter on successful iteration
+                # Check if done button was pressed (reset activity timer)
+                if machine.is_done_button_pressed():
+                    last_activity_time = current_time
                 
-                # Small sleep to prevent CPU from spinning at 100% usage
-                # This loop runs very fast, so we add a tiny delay
+                motor_error_count = 0
                 time.sleep(MOTOR_CONTROL_LOOP_DELAY)
                 
             except Exception as e:
