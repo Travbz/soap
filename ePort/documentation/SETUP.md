@@ -72,26 +72,83 @@ scp -r ePort/ pi@raspberrypi.local:~/vending-machine/
 # Or use git, USB drive, or any other method
 ```
 
-### Step 4: Configure Hardware Settings
+### Step 4: Configure Products
 
-Edit `config/__init__.py` if your hardware pin assignments differ from defaults:
+Edit `config/products.json` to define your products:
 
-```python
-# Machine hardware configuration
-MOTOR_PIN = 17          # GPIO pin for motor control
-FLOWMETER_PIN = 24      # GPIO pin for flowmeter input
-PRODUCT_BUTTON_PIN = 4  # GPIO pin for product selection button
-DONE_BUTTON_PIN = 27    # GPIO pin for done button
-
-# Serial port settings
-SERIAL_PORT = '/dev/ttyUSB0'  # Serial port for ePort device
+```json
+{
+  "products": [
+    {
+      "id": "soap_hand",
+      "name": "Hand Soap",
+      "description": "Gentle hand wash soap",
+      "price_per_unit": 0.15,
+      "unit": "oz",
+      "motor_pin": 17,
+      "flowmeter_pin": 24,
+      "button_pin": 4,
+      "pulses_per_unit": 5.4
+    }
+  ]
+}
 ```
+
+**Configuration fields:**
+- `id` - Unique product identifier
+- `name` - Display name for customer
+- `price_per_unit` - Price per unit in dollars
+- `unit` - Unit type (oz, ml, etc)
+- `motor_pin` - GPIO pin for motor control
+- `flowmeter_pin` - GPIO pin for flowmeter input
+- `button_pin` - GPIO pin for product selection button
+- `pulses_per_unit` - Flowmeter calibration (pulses per unit)
+
+**Adding multiple products:**
+```json
+{
+  "products": [
+    {
+      "id": "soap_hand",
+      "name": "Hand Soap",
+      "price_per_unit": 0.15,
+      "unit": "oz",
+      "motor_pin": 17,
+      "flowmeter_pin": 24,
+      "button_pin": 4,
+      "pulses_per_unit": 5.4
+    },
+    {
+      "id": "soap_dish",
+      "name": "Dish Soap",
+      "price_per_unit": 0.12,
+      "unit": "oz",
+      "motor_pin": 18,
+      "flowmeter_pin": 25,
+      "button_pin": 23,
+      "pulses_per_unit": 5.2
+    }
+  ]
+}
+```
+
+**Validation on startup:**
+- No duplicate GPIO pins allowed
+- No duplicate product IDs
+- All prices and calibration values must be positive
 
 **To find your serial port:**
 ```bash
 ls -l /dev/ttyUSB*
 # or
 ls -l /dev/ttyACM*
+```
+
+**Edit other settings in `config/__init__.py`:**
+```python
+SERIAL_PORT = '/dev/ttyUSB0'  # Serial port for ePort device
+DONE_BUTTON_PIN = 27          # Shared done button
+AUTH_AMOUNT_CENTS = 2000      # Pre-authorize $20.00
 ```
 
 ### Step 5: Verify Serial Port Permissions

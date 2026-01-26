@@ -108,8 +108,9 @@ def reset(self):
 **ALWAYS run tests before committing.**
 
 ```bash
-# Run tests
+# Run ALL test suites
 python3 -m ePort.tests.test_payment
+python3 -m ePort.tests.test_multi_product
 
 # If tests pass, then commit
 git add .
@@ -121,6 +122,25 @@ git commit -m "feat: add new feature"
 - Update existing tests when changing behavior
 - Use mocks from `ePort/tests/mocks.py` for hardware
 - Tests must pass on Python 3.7
+
+**Current Test Suites:**
+- `test_payment.py` - ePort protocol tests (7 tests)
+- `test_multi_product.py` - Product system tests (25 tests)
+
+**CRITICAL: When adding new test files:**
+1. Create test file: `ePort/tests/test_[feature].py`
+2. Update `.github/workflows/pr-tests.yml` to run the new tests
+3. Add to test matrix in CI/CD workflow
+4. Verify tests run in GitHub Actions before merging
+
+**Example CI/CD update:**
+```yaml
+- name: Run all tests
+  run: |
+    python3.7 -m ePort.tests.test_payment
+    python3.7 -m ePort.tests.test_multi_product
+    python3.7 -m ePort.tests.test_[new_feature]  # Add your new test here
+```
 
 ### 5. Commit Standards
 

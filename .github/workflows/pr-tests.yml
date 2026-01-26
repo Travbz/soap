@@ -4,7 +4,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
-      - master
       - main
 
 jobs:
@@ -38,8 +37,15 @@ jobs:
         run: |
           python3.7 -m ePort.tests.test_payment
       
+      - name: Run multi-product system tests
+        run: |
+          python3.7 -m ePort.tests.test_multi_product
+      
       - name: Check for syntax errors
         run: |
           python3.7 -m py_compile ePort/main.py
           python3.7 -m py_compile ePort/src/machine.py
           python3.7 -m py_compile ePort/src/payment.py
+          python3.7 -m py_compile ePort/src/product.py
+          python3.7 -m py_compile ePort/src/product_manager.py
+          python3.7 -m py_compile ePort/src/transaction_tracker.py
