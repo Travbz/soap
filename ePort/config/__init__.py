@@ -93,11 +93,11 @@ POST_RESET_DELAY = 1.0  # Wait time after reset before requesting authorization
 DECLINED_CARD_RETRY_DELAY = 1.0  # Wait time before checking status again after declined card
 
 # Multi-product configuration
-PRODUCTS_CONFIG_PATH = '/Users/travops/soap/ePort/config/products.json'  # Path to products configuration file
+PRODUCTS_CONFIG_PATH = 'ePort/config/products.json'  # Path to products configuration file (relative to project root)
 MAX_ITEMS_PER_TRANSACTION = 10  # Maximum number of different products per transaction (prevent abuse)
 PRODUCT_SWITCH_DELAY = 0.5  # Delay when switching between products in seconds (prevents rapid switching)
 
 # Dispensing session timeouts (prevent abandoned sessions blocking machine)
 DISPENSING_INACTIVITY_TIMEOUT = 60  # Seconds of no button activity before auto-completing transaction
-DISPENSING_MAX_SESSION_TIME = 300   # Maximum session duration in seconds (5 minutes total)
+DISPENSING_MAX_SESSION_TIME = 300   # Maximum session duration in seconds (5 minutes total) prevents abuse and sets expectations might wanna increase?? @adam
 INACTIVITY_WARNING_TIME = 45        # Seconds before timeout to display warning to customer
