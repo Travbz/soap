@@ -1,0 +1,398 @@
+/* Global Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #000000;
+    color: #FFFFFF;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+}
+
+#app {
+    width: 100%;
+    height: 100%;
+}
+
+/* Screen Management */
+.screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+}
+
+.screen.hidden {
+    display: none !important;
+}
+
+.center-content {
+    text-align: center;
+}
+
+/* Idle Screen */
+#idle-screen .card-graphic {
+    font-size: 120px;
+    margin-bottom: 40px;
+    animation: pulse 2s infinite;
+}
+
+#idle-screen h1 {
+    font-size: 72px;
+    margin-bottom: 20px;
+}
+
+#idle-screen h2 {
+    font-size: 48px;
+    color: #00FF00;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+/* Authorizing Screen */
+#authorizing-screen .spinner {
+    font-size: 120px;
+    margin-bottom: 40px;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+#authorizing-screen h1 {
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+#authorizing-screen h2 {
+    font-size: 40px;
+    color: #FFAA00;
+}
+
+/* Ready Screen */
+#ready-screen h1 {
+    font-size: 72px;
+    color: #00FF00;
+    margin-bottom: 40px;
+}
+
+#ready-screen h2 {
+    font-size: 56px;
+    margin-bottom: 60px;
+}
+
+.product-buttons {
+    display: flex;
+    gap: 80px;
+    justify-content: center;
+    margin-bottom: 60px;
+}
+
+.button-item {
+    text-align: center;
+}
+
+.button-visual {
+    font-size: 80px;
+    margin-bottom: 20px;
+}
+
+.button-item p {
+    font-size: 28px;
+    line-height: 1.6;
+}
+
+.button-item strong {
+    font-size: 36px;
+    color: #00FF00;
+}
+
+#ready-screen h3 {
+    font-size: 40px;
+    margin: 20px 0;
+    color: #FFAA00;
+}
+
+/* Dispensing Screen - ARTIST'S DESIGN */
+#dispensing-screen {
+    padding: 20px;
+    justify-content: flex-start;
+}
+
+.warning {
+    color: #FF0000;
+    font-size: 56px;
+    font-weight: bold;
+    text-align: center;
+    padding: 20px;
+    width: 100%;
+    animation: blink 1.5s infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.7; }
+}
+
+.main-content {
+    display: flex;
+    gap: 60px;
+    width: 100%;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+}
+
+.left-section {
+    flex: 0 0 400px;
+}
+
+.container-visual {
+    text-align: center;
+}
+
+.container-label {
+    font-size: 32px;
+    margin-bottom: 10px;
+    color: #FF0000;
+    font-weight: bold;
+}
+
+.container-box {
+    width: 350px;
+    height: 550px;
+    border: 5px solid #FFFFFF;
+    position: relative;
+    margin: 0 auto;
+    background: linear-gradient(to top, #0088FF 0%, transparent 100%);
+}
+
+.red-line {
+    position: absolute;
+    top: 20%;
+    width: 100%;
+    border-top: 6px solid #FF0000;
+    z-index: 10;
+}
+
+.red-line span {
+    position: absolute;
+    right: 10px;
+    top: -25px;
+    color: #FF0000;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.fill-level {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 30%;
+    background: rgba(0, 136, 255, 0.6);
+    transition: height 0.3s;
+}
+
+.button-label {
+    margin-top: 20px;
+    font-size: 24px;
+    color: #AAAAAA;
+}
+
+.right-section {
+    flex: 1;
+}
+
+.currently-dispensing {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.currently-dispensing p {
+    font-size: 32px;
+    color: #AAAAAA;
+}
+
+.currently-dispensing h2 {
+    font-size: 56px;
+    color: #00FF00;
+    margin: 10px 0;
+    font-weight: bold;
+}
+
+.currently-dispensing .hint {
+    font-size: 24px;
+    font-style: italic;
+}
+
+.product-counters {
+    margin-top: 40px;
+}
+
+.product-counters table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 40px;
+}
+
+.product-counters th {
+    padding: 20px;
+    border: 3px solid #FFFFFF;
+    background: #222222;
+}
+
+.product-counters td {
+    padding: 25px;
+    border: 3px solid #FFFFFF;
+    text-align: center;
+}
+
+.product-counters .quantities td {
+    font-weight: bold;
+}
+
+.product-counters .prices td {
+    color: #00FF00;
+}
+
+.product-counters .total-cell {
+    background: #333333;
+    font-weight: bold;
+    font-size: 48px;
+}
+
+.bottom-instructions {
+    text-align: center;
+    margin-top: 30px;
+}
+
+.done-button-graphic {
+    font-size: 80px;
+    margin-bottom: 15px;
+}
+
+.bottom-instructions p {
+    font-size: 32px;
+    color: #FFAA00;
+}
+
+.timer {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    font-size: 28px;
+    color: #FFFFFF;
+}
+
+.timer.warning {
+    color: #FFAA00;
+    animation: blink 1s infinite;
+}
+
+/* Receipt Screen - ARTIST'S DESIGN */
+.receipt-container {
+    width: 100%;
+    max-width: 1000px;
+    text-align: center;
+}
+
+.receipt-title {
+    font-size: 72px;
+    margin-bottom: 60px;
+    color: #00FF00;
+}
+
+.receipt {
+    background: #FFFFFF;
+    color: #000000;
+    padding: 60px;
+    margin: 0 auto;
+    font-family: 'Courier New', monospace;
+    border-radius: 10px;
+}
+
+.receipt-header {
+    font-size: 36px;
+    margin-bottom: 30px;
+    font-weight: bold;
+}
+
+.receipt-items {
+    margin: 30px 0;
+    text-align: left;
+}
+
+.receipt-item {
+    margin: 20px 0;
+    font-size: 32px;
+    line-height: 1.8;
+}
+
+.receipt-item-name {
+    font-weight: bold;
+}
+
+.receipt-item-details {
+    padding-left: 20px;
+}
+
+.receipt-total {
+    border-top: 3px solid #000000;
+    padding-top: 20px;
+    font-size: 40px;
+    font-weight: bold;
+    text-align: right;
+}
+
+.countdown {
+    margin-top: 40px;
+    font-size: 36px;
+    color: #FFAA00;
+}
+
+.countdown span {
+    font-size: 48px;
+    font-weight: bold;
+    color: #FF0000;
+}
+
+/* Error Screens */
+.error-content {
+    text-align: center;
+}
+
+.error-icon {
+    font-size: 150px;
+    margin-bottom: 40px;
+}
+
+.error-content h1 {
+    font-size: 72px;
+    color: #FF0000;
+    margin-bottom: 30px;
+}
+
+.error-content h2 {
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+
+.error-code {
+    margin-top: 30px;
+    font-size: 24px;
+    color: #AAAAAA;
+    font-family: monospace;
+}

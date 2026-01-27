@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soap Vending Machine</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+    <!-- Container for all states -->
+    <div id="app">
+        <!-- STATE 1: Idle - Swipe Card -->
+        <div id="idle-screen" class="screen">
+            <div class="center-content">
+                <div class="card-graphic">💳</div>
+                <h1>SWIPE OR TAP CARD</h1>
+                <h2>TO BEGIN</h2>
+            </div>
+        </div>
+
+        <!-- STATE 2: Authorizing -->
+        <div id="authorizing-screen" class="screen hidden">
+            <div class="center-content">
+                <div class="spinner">⏳</div>
+                <h1>AUTHORIZING PAYMENT...</h1>
+                <h2>Please wait</h2>
+            </div>
+        </div>
+
+        <!-- STATE 3: Ready - Product Selection -->
+        <div id="ready-screen" class="screen hidden">
+            <div class="center-content">
+                <h1>✓ AUTHORIZED</h1>
+                <h2>SELECT PRODUCT</h2>
+                <div class="product-buttons">
+                    <div class="button-item">
+                        <div class="button-visual">🔵</div>
+                        <p>Left Button<br><strong>Hand Soap</strong><br>$0.15/oz</p>
+                    </div>
+                    <div class="button-item">
+                        <div class="button-visual">🔵</div>
+                        <p>Middle Button<br><strong>Dish Soap</strong><br>$0.12/oz</p>
+                    </div>
+                    <div class="button-item">
+                        <div class="button-visual">🔵</div>
+                        <p>Right Button<br><strong>Laundry</strong><br>$0.10/oz</p>
+                    </div>
+                </div>
+                <h3>HOLD BUTTON TO DISPENSE</h3>
+                <h3>Press DONE when finished</h3>
+            </div>
+        </div>
+
+        <!-- STATE 4: Dispensing (ARTIST'S PRIMARY SCREEN) -->
+        <div id="dispensing-screen" class="screen hidden">
+            <div class="warning">⚠️ PAY ATTENTION - STOP EARLY!</div>
+            
+            <div class="main-content">
+                <div class="left-section">
+                    <div class="container-visual">
+                        <div class="container-label">DON'T OVERFILL</div>
+                        <div class="container-box">
+                            <div class="red-line">
+                                <span>RED LINE</span>
+                            </div>
+                            <div class="fill-level" id="fill-level"></div>
+                        </div>
+                        <div class="button-label">When Pressing a Button</div>
+                    </div>
+                </div>
+                
+                <div class="right-section">
+                    <div class="currently-dispensing">
+                        <p>Currently Dispensing:</p>
+                        <h2 id="current-product">--</h2>
+                        <p class="hint">(Hold button)</p>
+                    </div>
+                    
+                    <div class="product-counters">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>HAND</th>
+                                    <th>DISH</th>
+                                    <th>LAUNDRY</th>
+                                    <th>TOTAL</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="quantities">
+                                    <td id="hand-qty">0oz</td>
+                                    <td id="dish-qty">0oz</td>
+                                    <td id="laundry-qty">0oz</td>
+                                    <td id="total-qty" class="total-cell">--</td>
+                                </tr>
+                                <tr class="prices">
+                                    <td id="hand-price">$0.00</td>
+                                    <td id="dish-price">$0.00</td>
+                                    <td id="laundry-price">$0.00</td>
+                                    <td id="total-price" class="total-cell">$0.00</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bottom-instructions">
+                <div class="done-button-graphic">⏹️</div>
+                <p>Press DONE or pick another product to continue</p>
+            </div>
+            
+            <div class="timer" id="session-timer">⏱️ Time remaining: 5:00</div>
+        </div>
+
+        <!-- STATE 5: Complete - Receipt (ARTIST'S RECEIPT SCREEN) -->
+        <div id="complete-screen" class="screen hidden">
+            <div class="receipt-container">
+                <h1 class="receipt-title">THANKS FOR REFILLING!</h1>
+                
+                <div class="receipt">
+                    <p class="receipt-header">Your Receipt:</p>
+                    <div id="receipt-items" class="receipt-items">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                    <div class="receipt-total">
+                        TOTAL ........................ $<span id="receipt-total">0.00</span>
+                    </div>
+                </div>
+                
+                <p class="countdown">Returning to home in <span id="countdown">10</span>...</p>
+            </div>
+        </div>
+
+        <!-- STATE 6: Declined -->
+        <div id="declined-screen" class="screen hidden">
+            <div class="center-content error-content">
+                <div class="error-icon">❌</div>
+                <h1>CARD DECLINED</h1>
+                <h2>Please try another card</h2>
+            </div>
+        </div>
+
+        <!-- STATE 7: Error -->
+        <div id="error-screen" class="screen hidden">
+            <div class="center-content error-content">
+                <div class="error-icon">⚠️</div>
+                <h1>MACHINE ERROR</h1>
+                <h2 id="error-message">Please contact staff for assistance</h2>
+                <p id="error-code" class="error-code"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
