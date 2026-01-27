@@ -8,12 +8,14 @@ A production-ready vending machine controller that handles credit card payments 
 
 ## 🎯 Features
 
-### ✅ Implemented (Phase 1 & 2)
+### ✅ Implemented
 
 - **Multi-Product Support**: Configure unlimited products via JSON
 - **Credit Card Processing**: ePort serial protocol integration (9600 8-N-1)
+- **Customer Display**: Real-time web-based display with live counters and receipts
 - **Real-Time Dispensing**: GPIO-controlled motors with flowmeter feedback
 - **Transaction Tracking**: Itemized receipts for multiple products per transaction
+- **Auto-Setup**: One-command installation with dependency detection
 - **Timeout Protection**: Auto-complete abandoned sessions (60s inactivity, 5min max)
 - **Safety Limits**: Max transaction price, item count limits, validation
 - **Comprehensive Testing**: 32 unit tests, all passing
@@ -22,7 +24,6 @@ A production-ready vending machine controller that handles credit card payments 
 ### 🚧 Planned (Future Phases)
 
 - **Inventory Tracking**: SQLite-based inventory with low-stock alerts (PRD complete)
-- **Customer Display**: Visual guidance system with graphics/videos (PRD complete)
 - **Centralized Logging**: Remote monitoring and analytics (PRD complete)
 - **Remote Notifications**: ePort cellular for alerts and diagnostics (documented)
 
@@ -47,10 +48,19 @@ ePort/
 │   ├── product_manager.py     # ProductManager - loads/manages products
 │   └── transaction_tracker.py # TransactionTracker - tracks items & totals
 │
+├── scripts/
+│   └── setup.sh               # Automated setup script
+│
+├── display/
+│   ├── templates/             # HTML templates for customer display
+│   └── static/                # CSS and JavaScript for display
+│
 ├── tests/
 │   ├── mocks.py               # Mock GPIO & serial for testing
 │   ├── test_payment.py        # ePort protocol tests (7 tests)
-│   └── test_multi_product.py  # Multi-product system tests (25 tests)
+│   ├── test_multi_product.py  # Multi-product system tests (25 tests)
+│   ├── test_display.py        # Display system test/demo
+│   └── setup_dev.sh           # Dev environment setup
 │
 └── documentation/
     ├── ARCHITECTURE.md         # System architecture & design
@@ -74,27 +84,34 @@ ePort/
 - Raspberry Pi (tested on Pi 3/4)
 - Python 3.7+
 - ePort credit card reader (serial connection)
+- HDMI display (for customer interface)
 - GPIO-connected hardware (motors, flowmeters, buttons)
 
 ### Installation
 
+**One command - everything else is automatic:**
+
 ```bash
-# Clone repository
+# Clone and run
 git clone git@github.com:Travbz/soap.git
 cd soap
-
-# Install dependencies
-pip3 install -r ePort/requirements.txt
-
-# Configure products
-nano ePort/config/products.json
-
-# Run tests
-python3 -m ePort.tests.test_payment
-python3 -m ePort.tests.test_multi_product
-
-# Start controller
 python3 -m ePort.main
+```
+
+The system auto-detects if setup is needed and runs it automatically. After setup completes, just reboot.
+
+### View Display Demo (Development)
+
+```bash
+# Setup dev environment
+cd ePort/tests
+./setup_dev.sh
+source .venv/bin/activate
+
+# Run display test
+python3 -m ePort.tests.test_display
+
+# Open browser to http://localhost:5000
 ```
 
 ### Configuration
