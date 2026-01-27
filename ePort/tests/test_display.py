@@ -6,7 +6,7 @@ Run this to test the display without the full vending machine system.
 
 import time
 import sys
-from src.display_server import DisplayServer
+from ePort.src.display_server import DisplayServer
 
 def main():
     print("Starting display server test...")
@@ -127,10 +127,18 @@ def main():
     print("\nTest complete! Returning to idle...")
     display.change_state('idle')
     
-    print("\nServer will continue running. Press Ctrl+C to stop.")
+    print("\nServer will continue running.")
+    print("View at: http://localhost:5000")
+    print("Press Ctrl+C to stop, or wait 10s to replay...")
+    
     try:
-        while True:
+        countdown = 10
+        while countdown > 0:
+            print(f"Replaying in {countdown}s...", end='\r')
             time.sleep(1)
+            countdown -= 1
+        print("\nReplaying demo...")
+        main()  # Replay the demo
     except KeyboardInterrupt:
         print("\nShutting down...")
         sys.exit(0)

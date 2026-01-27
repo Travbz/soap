@@ -296,8 +296,60 @@ def cleanup_resources(ser: Optional[serial.Serial], gpio):
         logger.error(f"Error cleaning up GPIO: {e}")
 
 
+def check_and_run_setup():
+    """Check if setup is needed and run it automatically"""
+    import os
+    import subprocess
+    
+    # Check if dependencies are installed
+    missing = []
+    try:
+        import flask, flask_socketio
+    except ImportError:
+        missing.append("flask")
+    
+    try:
+        import serial
+    except ImportError:
+        missing.append("serial")
+    
+    try:
+        import RPi.GPIO
+    except ImportError:
+        missing.append("GPIO")
+    
+    if not missing:
+        return True  # All good
+    
+    # Dependencies missing - run setup automatically
+    logger.info("=" * 60)
+    logger.info("FIRST TIME SETUP DETECTED")
+    logger.info("=" * 60)
+    logger.info("Running automated setup...")
+    
+    script_path = os.path.join(os.path.dirname(__file__), 'scripts', 'setup.sh')
+    
+    try:
+        result = subprocess.run(['bash', script_path], check=True)
+        logger.info("Setup completed successfully!")
+        logger.info("Please reboot the system: sudo reboot")
+        return False  # Need reboot
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Setup failed: {e}")
+        logger.error("Please run manually: cd ~/soap/ePort/scripts && ./setup.sh")
+        return False
+    except FileNotFoundError:
+        logger.error(f"Setup script not found at {script_path}")
+        logger.error("Install manually: pip3 install -r requirements.txt")
+        return False
+
+
 def main():
     """Main application loop with comprehensive error handling"""
+    
+    # Auto-setup if needed
+    if not check_and_run_setup():
+        return 1
     
     ser = None
     gpio = None
@@ -318,20 +370,23 @@ def main():
         except Exception as e:
             raise VendingMachineError(f"Failed to load products: {e}")
         
-        # Initialize display server (if enabled)
+        # Initialize display server (required for production)
         if DISPLAY_ENABLED:
             try:
-                logger.info("Starting display server...")
+                logger.info("Starting customer display server...")
                 display = DisplayServer(host=DISPLAY_HOST, port=DISPLAY_PORT)
                 display.start(background=True)
-                logger.info(f"Display server started on http://{DISPLAY_HOST}:{DISPLAY_PORT}")
+                logger.info(f"Customer display server started on http://{DISPLAY_HOST}:{DISPLAY_PORT}")
                 time.sleep(1)  # Give server time to start
             except Exception as e:
-                logger.error(f"Failed to start display server: {e}")
-                logger.warning("Continuing without display...")
-                display = None
+                logger.critical(f"CRITICAL: Failed to start display server: {e}")
+                logger.error("Display server is required for production operation")
+                logger.error("Install dependencies: pip3 install flask flask-socketio python-socketio")
+                raise VendingMachineError(f"Display server initialization failed: {e}")
         else:
-            logger.info("Display server disabled in configuration")
+            logger.warning("Display server disabled - this should only be used for development/testing")
+            logger.warning("Production systems require DISPLAY_ENABLED = True")
+            display = None
         
         # Initialize GPIO
         logger.info("Initializing GPIO...")
