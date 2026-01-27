@@ -119,12 +119,12 @@ class MachineController:
         if self.current_product:
             self.gpio.output(self.current_product.motor_pin, self.gpio.LOW)
         
-        # Switch to new product
-        self.current_product = product
-        
-        # Notify callback if provided
+        # Notify callback BEFORE switching (so callback can access previous product)
         if self._product_switch_callback:
             self._product_switch_callback(product)
+        
+        # Switch to new product
+        self.current_product = product
         
         return True
     

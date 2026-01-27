@@ -21,6 +21,17 @@
       "flowmeter_pin": 25,
       "button_pin": 23,
       "pulses_per_unit": 5.2
+    },
+    {
+      "id": "soap_laundry",
+      "name": "Laundry Soap",
+      "description": "Heavy duty laundry detergent",
+      "price_per_unit": 0.10,
+      "unit": "oz",
+      "motor_pin": 22,
+      "flowmeter_pin": 27,
+      "button_pin": 5,
+      "pulses_per_unit": 5.3
     }
   ]
 }
