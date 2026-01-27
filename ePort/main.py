@@ -22,6 +22,7 @@ from .src.payment import EPortProtocol
 from .src.machine import MachineController
 from .src.product_manager import ProductManager
 from .src.transaction_tracker import TransactionTracker
+from .src.display_server import DisplayServer
 from .config import (
     SERIAL_PORT, SERIAL_BAUDRATE, SERIAL_TIMEOUT,
     DONE_BUTTON_PIN,
@@ -41,7 +42,12 @@ from .config import (
     MAX_ITEMS_PER_TRANSACTION,
     DISPENSING_INACTIVITY_TIMEOUT,
     DISPENSING_MAX_SESSION_TIME,
-    INACTIVITY_WARNING_TIME
+    INACTIVITY_WARNING_TIME,
+    DISPLAY_ENABLED,
+    DISPLAY_HOST,
+    DISPLAY_PORT,
+    RECEIPT_DISPLAY_TIMEOUT,
+    ERROR_DISPLAY_TIMEOUT
 )
 
 # Configure logging
@@ -298,6 +304,7 @@ def main():
     payment = None
     machine = None
     product_manager = None
+    display = None
     
     try:
         # Initialize product manager
@@ -310,6 +317,21 @@ def main():
                 logger.info(f"  - {product.name}: ${product.price_per_unit}/{product.unit}")
         except Exception as e:
             raise VendingMachineError(f"Failed to load products: {e}")
+        
+        # Initialize display server (if enabled)
+        if DISPLAY_ENABLED:
+            try:
+                logger.info("Starting display server...")
+                display = DisplayServer(host=DISPLAY_HOST, port=DISPLAY_PORT)
+                display.start(background=True)
+                logger.info(f"Display server started on http://{DISPLAY_HOST}:{DISPLAY_PORT}")
+                time.sleep(1)  # Give server time to start
+            except Exception as e:
+                logger.error(f"Failed to start display server: {e}")
+                logger.warning("Continuing without display...")
+                display = None
+        else:
+            logger.info("Display server disabled in configuration")
         
         # Initialize GPIO
         logger.info("Initializing GPIO...")
@@ -338,6 +360,8 @@ def main():
         logger.info("=" * 60)
         logger.info("Multi-Product Vending Machine Controller Started")
         logger.info(f"Available products: {', '.join(p.name for p in products)}")
+        if display:
+            logger.info(f"Display: http://{DISPLAY_HOST}:{DISPLAY_PORT}")
         logger.info("=" * 60)
         
         # Main loop - continuously monitor for customers
@@ -345,6 +369,10 @@ def main():
         
         while True:
             try:
+                # STATE 1: Idle - waiting for card
+                if display:
+                    display.change_state('idle')
+                
                 # Poll ePort status
                 status = safe_status_check(payment)
                 
@@ -353,6 +381,8 @@ def main():
                     logger.error(f"Status check failed (consecutive errors: {consecutive_errors})")
                     if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
                         logger.critical(f"Too many consecutive errors ({consecutive_errors}). Exiting.")
+                        if display:
+                            display.show_error("System error - too many failures", error_code="MAX_ERRORS")
                         break
                     time.sleep(RETRY_DELAY)
                     continue
@@ -363,6 +393,10 @@ def main():
                 # Check if ePort is disabled (code 6)
                 if status == b'6':
                     logger.info("ePort disabled - resetting and requesting authorization")
+                    
+                    # STATE 2: Authorizing
+                    if display:
+                        display.change_state('authorizing')
                     
                     if not safe_reset(payment):
                         logger.error("Reset failed - skipping authorization request")
@@ -382,27 +416,49 @@ def main():
                     auth_status = safe_status_check(payment)
                     if auth_status:
                         logger.info(f"Auth status: {auth_status}")
+                        
+                        # Check if declined
+                        if auth_status.startswith(b'3'):
+                            logger.warning("Authorization declined by bank")
+                            if display:
+                                display.change_state('declined')
+                            time.sleep(5)  # Show declined message
+                            continue
+                        elif auth_status == b'9':
+                            # STATE 3: Ready - show product selection
+                            if display:
+                                display.change_state('ready')
+                            time.sleep(2)  # Show ready screen briefly
                     else:
                         logger.warning("Failed to get auth status")
                         
                 # Check if authorization declined (code 3)
                 elif status.startswith(b'3'):
                     logger.warning("Authorization declined by bank")
-                    # Handle declined transaction - wait before retrying
+                    if display:
+                        display.change_state('declined')
                     time.sleep(DECLINED_CARD_RETRY_DELAY)
                     
                 # Check if waiting for transaction result (code 9)
                 # This means card was approved and customer can dispense
                 elif status == b'9':
                     logger.info("Authorization approved - enabling dispensing")
+                    
+                    # STATE 4: Dispensing (will be set in handle_dispensing)
                     try:
-                        handle_dispensing(machine, payment, product_manager)
+                        handle_dispensing(machine, payment, product_manager, display)
                     except KeyboardInterrupt:
                         logger.info("Dispensing interrupted by user")
                         raise
                     except Exception as e:
                         logger.error(f"Error during dispensing: {e}")
                         logger.error(traceback.format_exc())
+                        
+                        # STATE 7: Error
+                        if display:
+                            display.show_error("Machine error occurred", error_code=str(e)[:50])
+                            time.sleep(ERROR_DISPLAY_TIMEOUT)
+                        
                         # Reset machine state on error
                         try:
                             machine.reset()
@@ -448,7 +504,7 @@ def main():
 
 
 def handle_dispensing(machine: MachineController, payment: EPortProtocol, 
-                     product_manager: ProductManager):
+                     product_manager: ProductManager, display: Optional[DisplayServer] = None):
     """
     Handle the dispensing phase after authorization is approved (Multi-Product)
     
@@ -496,12 +552,29 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             ounces: Ounces dispensed for current product
             price: Price for current product
         """
-        nonlocal current_product_ounces
+        nonlocal current_product_ounces, last_activity_time
         try:
             current_product_ounces = ounces
             product = machine.get_current_product()
             if product:
                 logger.debug(f"{product.name}: {ounces:.3f} {product.unit} - ${price:.2f}")
+                
+                # Update display with real-time counter
+                if display:
+                    display.update_product(
+                        product_id=product.id,
+                        product_name=product.name,
+                        quantity=ounces,
+                        unit=product.unit,
+                        price=price,
+                        is_active=True
+                    )
+                    
+                    # Update total
+                    total = transaction.get_total() + price
+                    display.update_total(total)
+            
+            last_activity_time = time.time()
         except Exception as e:
             logger.error(f"Error in flowmeter callback: {e}")
     
@@ -529,6 +602,17 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     price=price
                 )
                 logger.info(f"Recorded: {prev_product.name} {current_product_ounces:.2f} {prev_product.unit} - ${price:.2f}")
+                
+                # Update display to show recorded product (no longer active)
+                if display:
+                    display.update_product(
+                        product_id=prev_product.id,
+                        product_name=prev_product.name,
+                        quantity=current_product_ounces,
+                        unit=prev_product.unit,
+                        price=price,
+                        is_active=False
+                    )
             
             # Switch to new product
             logger.info(f"Switching to: {product.name}")
@@ -578,7 +662,14 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             # Get total price
             total_price = transaction.get_total()
             
-            # Display itemized transaction to customer
+            # STATE 5: Complete - Show receipt
+            if display:
+                display.show_receipt(
+                    items=transaction.get_items(),
+                    total=total_price
+                )
+            
+            # Display itemized transaction to customer (terminal)
             print("\n" + "=" * 40)
             print(transaction.get_summary())
             print("=" * 40)
@@ -614,6 +705,10 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             except Exception as e:
                 logger.warning(f"Could not retrieve transaction ID: {e}")
             
+            # Show receipt for configured time
+            if display:
+                time.sleep(RECEIPT_DISPLAY_TIMEOUT)
+            
             # Reset machine
             machine.reset()
             print("\nThank you! Machine ready for next customer\n")
@@ -634,6 +729,10 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
     
     # Start dispensing mode - set up callbacks
     try:
+        # STATE 4: Dispensing
+        if display:
+            display.change_state('dispensing')
+        
         machine.start_dispensing(
             flowmeter_callback=on_flowmeter_pulse,
             done_callback=on_done_button,
@@ -666,6 +765,13 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     # Trigger done button callback to complete transaction
                     on_done_button()
                     break
+                
+                # Update timer on display
+                if display:
+                    seconds_remaining = int(DISPENSING_MAX_SESSION_TIME - session_duration)
+                    inactivity_duration = current_time - last_activity_time
+                    warning = inactivity_duration > INACTIVITY_WARNING_TIME
+                    display.update_timer(seconds_remaining, warning=warning)
                 
                 # Check for inactivity timeout
                 inactivity_duration = current_time - last_activity_time
