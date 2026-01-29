@@ -22,7 +22,6 @@ from .src.payment import EPortProtocol
 from .src.machine import MachineController
 from .src.product_manager import ProductManager
 from .src.transaction_tracker import TransactionTracker
-from .src.display_server import DisplayServer
 from .config import (
     SERIAL_PORT, SERIAL_BAUDRATE, SERIAL_TIMEOUT,
     DONE_BUTTON_PIN,
@@ -373,6 +372,7 @@ def main():
         # Initialize display server (required for production)
         if DISPLAY_ENABLED:
             try:
+                from .src.display_server import DisplayServer
                 logger.info("Starting customer display server...")
                 display = DisplayServer(host=DISPLAY_HOST, port=DISPLAY_PORT)
                 display.start(background=True)
