@@ -33,10 +33,27 @@ display/
 1. **idle** - Swipe card prompt
 2. **authorizing** - Processing payment
 3. **ready** - Product selection instructions
-4. **dispensing** - Live counters (artist's primary screen)
-5. **complete** - Receipt (artist's receipt screen)
-6. **declined** - Card declined
-7. **error** - Machine error
+4. **dispensing** - Live counters with overfill warning
+5. **waiting** - Press done button (shown after inactivity during transaction)
+6. **complete** - Receipt display
+7. **declined** - Card declined
+8. **error** - Machine error
+
+## Architecture
+
+### Product Bar (Micro-Frontend)
+
+The product bar is a persistent component that displays across multiple states:
+- Shows all available products with quantities and prices
+- Updates in real-time during dispensing
+- Highlights active product (green), purchased products (blue), and idle products (gray)
+- Fixed at bottom of screen, always visible except on error/declined/authorizing screens
+
+### Visual Design
+
+- **Dispensing Screen**: Features dispenser nozzle going into bottle with red line indicator
+- **Ground Platform**: Gray platform behind bottle for visual grounding
+- **Real-time Updates**: Product counters update via WebSocket on each flowmeter pulse
 
 ## Customization
 
@@ -68,7 +85,8 @@ body {
 Edit `ePort/config/__init__.py`:
 
 ```python
-RECEIPT_DISPLAY_TIMEOUT = 10  # Seconds
+RECEIPT_DISPLAY_TIMEOUT = 10     # Seconds to show receipt
+WAITING_SCREEN_TIMEOUT = 2       # Seconds before showing "Press Done" screen
 ```
 
 ## Production Deployment
