@@ -6,62 +6,244 @@
 }
 
 body {
-    background: #000000;
-    color: #FFFFFF;
-    font-family: Arial, sans-serif;
+    font-family: 'Arial', 'Helvetica', sans-serif;
+    background: #B8D4E6;
+    color: #3C4D5C;
     overflow: hidden;
+}
+
+.screen {
     width: 100vw;
     height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
 }
 
-#app {
-    width: 100%;
-    height: 100%;
+.hidden {
+    display: none !important;
 }
 
-/* Screen Management */
-.screen {
+/* Product Bar MFE - Persistent component across states */
+.product-bar {
+    background: #647484;
+    display: flex;
+    justify-content: space-around;
+    padding: 0;
+    min-height: 200px;
     width: 100%;
-    height: 100%;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+}
+
+/* Hide product bar for certain states */
+#authorizing-screen ~ #product-bar,
+#declined-screen ~ #product-bar,
+#error-screen ~ #product-bar {
+    display: none;
+}
+
+/* Show product bar when these states are active */
+body:has(#idle-screen:not(.hidden)) #product-bar,
+body:has(#ready-screen:not(.hidden)) #product-bar,
+body:has(#dispensing-screen:not(.hidden)) #product-bar,
+body:has(#waiting-screen:not(.hidden)) #product-bar,
+body:has(#complete-screen:not(.hidden)) #product-bar {
+    display: flex;
+}
+
+.product-column {
+    flex: 1;
+    text-align: center;
+    color: white;
+    border-right: 2px solid #5C6D7C;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.product-column:last-child {
+    border-right: none;
+}
+
+.product-name {
+    font-size: 28px;
+    font-weight: bold;
+    padding: 20px 10px;
+    text-transform: uppercase;
+    min-height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.2;
+    white-space: nowrap;
+    background: #3C4D5C;
+    color: #FFFFFF;
+}
+
+.product-qty {
+    background: #C5D9A4;
+    color: #000;
+    padding: 15px;
+    margin: 10px 10px 5px 10px;
+    border-radius: 15px;
+    font-size: 32px;
+    font-weight: bold;
+}
+
+.product-price {
+    background: #C5D9A4;
+    color: #000;
+    padding: 15px;
+    margin: 5px 10px 10px 10px;
+    border-radius: 15px;
+    font-size: 40px;
+    font-weight: bold;
+}
+
+.product-column.active {
+    background: #8FD14F;
+}
+
+.product-column.active .product-name {
+    background: #8FD14F;
+    color: #fff;
+}
+
+.product-column.active .product-qty,
+.product-column.active .product-price {
+    background: #C8E8A8;
+}
+
+.product-column:not(.active) {
+    opacity: 1;
+    background: #4E5E6E;
+}
+
+.product-column:not(.active) .product-name {
+    background: #3A4A5A;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.product-column:not(.active) .product-qty,
+.product-column:not(.active) .product-price {
+    background: #5A6A7A;
+    color: rgba(0, 0, 0, 0.5);
+}
+
+/* Purchased state - product has been dispensed but not currently active */
+.product-column.purchased {
+    background: #6BA3D4;
+}
+
+.product-column.purchased .product-name {
+    background: #6BA3D4;
+    color: #fff;
+}
+
+.product-column.purchased .product-qty,
+.product-column.purchased .product-price {
+    background: #A8D0F0;
+    color: #000;
+}
+
+.total-column {
+    background: #2C3D4C;
+    border-left: 3px solid #fff;
+}
+
+.total-label {
+    font-size: 28px;
+    font-weight: bold;
+    padding: 20px 10px;
+    min-height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #2C3D4C;
+    color: #FFFFFF;
+}
+
+.total-amount {
+    font-size: 48px;
+    font-weight: bold;
+    color: #fff;
+    padding: 20px;
+}
+
+/* STATE 1: Idle */
+#idle-screen {
+    justify-content: flex-start;
+    align-items: center;
+    padding-top: 10vh;
+}
+
+.header-text {
+    font-size: 72px;
+    font-weight: bold;
+    color: #2C3D4C;
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.banner-red {
+    background: #FF5744;
+    color: white;
+    padding: 40px 80px;
+    clip-path: polygon(0 0, 90% 0, 98% 50%, 90% 100%, 0 100%);
+    margin-bottom: 20px;
+    position: relative;
+    width: 85%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.banner-text {
+    font-size: 96px;
+    font-weight: bold;
+    display: block;
+    line-height: 1.1;
+    text-align: center;
+}
+
+.banner-text .or {
+    font-size: 48px;
+}
+
+.subheader {
+    font-size: 64px;
+    font-weight: bold;
+    color: #5B8DB8;
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+
+/* STATE 2: Authorizing */
+.center-content {
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    padding: 40px;
+    height: calc(100vh - 200px);
+    min-height: 400px;
+    background: #B8D4E6;
 }
 
-.screen.hidden {
-    display: none !important;
+.center-content h1 {
+    color: #2C3D4C;
 }
 
-.center-content {
-    text-align: center;
+.center-content h2 {
+    color: #2C3D4C;
 }
 
-/* Idle Screen */
-#idle-screen .card-graphic {
-    font-size: 120px;
-    margin-bottom: 40px;
-    animation: pulse 2s infinite;
-}
-
-#idle-screen h1 {
-    font-size: 72px;
-    margin-bottom: 20px;
-}
-
-#idle-screen h2 {
-    font-size: 48px;
-    color: #00FF00;
-}
-
-@keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-}
-
-/* Authorizing Screen */
-#authorizing-screen .spinner {
+.spinner {
     font-size: 120px;
     margin-bottom: 40px;
     animation: spin 2s linear infinite;
@@ -72,327 +254,362 @@ body {
     to { transform: rotate(360deg); }
 }
 
-#authorizing-screen h1 {
-    font-size: 64px;
-    margin-bottom: 20px;
-}
-
-#authorizing-screen h2 {
-    font-size: 40px;
-    color: #FFAA00;
-}
-
-/* Ready Screen */
-#ready-screen h1 {
+/* STATE 3: Ready */
+.header-blue {
     font-size: 72px;
-    color: #00FF00;
-    margin-bottom: 40px;
-}
-
-#ready-screen h2 {
-    font-size: 56px;
-    margin-bottom: 60px;
-}
-
-.product-buttons {
-    display: flex;
-    gap: 80px;
-    justify-content: center;
-    margin-bottom: 60px;
-}
-
-.button-item {
-    text-align: center;
-}
-
-.button-visual {
-    font-size: 80px;
-    margin-bottom: 20px;
-}
-
-.button-item p {
-    font-size: 28px;
-    line-height: 1.6;
-}
-
-.button-item strong {
-    font-size: 36px;
-    color: #00FF00;
-}
-
-#ready-screen h3 {
-    font-size: 40px;
-    margin: 20px 0;
-    color: #FFAA00;
-}
-
-/* Dispensing Screen - ARTIST'S DESIGN */
-#dispensing-screen {
-    padding: 20px;
-    justify-content: flex-start;
-}
-
-.warning {
-    color: #FF0000;
-    font-size: 56px;
     font-weight: bold;
+    color: #5B8DB8;
     text-align: center;
-    padding: 20px;
-    width: 100%;
-    animation: blink 1.5s infinite;
+    padding: 60px 40px 40px 40px;
 }
 
-@keyframes blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0.7; }
-}
-
-.main-content {
-    display: flex;
-    gap: 60px;
-    width: 100%;
+.instructions-box {
     flex: 1;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
     justify-content: center;
+    align-items: center;
+    padding: 40px;
 }
 
-.left-section {
-    flex: 0 0 400px;
-}
-
-.container-visual {
-    text-align: center;
-}
-
-.container-label {
-    font-size: 32px;
-    margin-bottom: 10px;
-    color: #FF0000;
+.instructions-box h2 {
+    font-size: 56px;
     font-weight: bold;
+    color: #2C3D4C;
+    margin-bottom: 30px;
 }
 
-.container-box {
-    width: 350px;
-    height: 550px;
-    border: 5px solid #FFFFFF;
-    position: relative;
-    margin: 0 auto;
-    background: linear-gradient(to top, #0088FF 0%, transparent 100%);
+.instruction-red {
+    font-size: 40px;
+    font-weight: bold;
+    color: #FF5744;
+    margin-bottom: 150px;
 }
 
-.red-line {
+.button-arrows {
+    font-size: 100px;
+    color: #FF5744;
+    display: flex;
     position: absolute;
-    top: 20%;
+    bottom: 280px;
+    left: 0;
     width: 100%;
-    border-top: 6px solid #FF0000;
     z-index: 10;
 }
 
-.red-line span {
-    position: absolute;
-    right: 10px;
-    top: -25px;
-    color: #FF0000;
-    font-size: 18px;
+.button-arrows span {
+    flex: 1;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    line-height: 1;
+}
+
+/* STATE 4: Dispensing */
+#dispensing-screen {
+    background: #B8D4E6;
+}
+
+.warning-section {
+    display: flex;
+    background: #495F7E;
+    padding: 40px 60px 40px 60px;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex: 1;
+    position: relative;
+    height: calc(100vh - 200px);
+}
+
+.warning-left {
+    flex: 0 0 30%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding-left: 40px;
+    padding-top: 0;
+}
+
+.warning-right {
+    flex: 0 0 25%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-start;
+    padding-right: 80px;
+    padding-top: 0;
+    text-align: right;
+}
+
+.warning-title {
+    font-size: 56px;
     font-weight: bold;
+    color: #FFE8B3;
+    margin-bottom: 20px;
+    line-height: 1.2;
+}
+
+.warning-big {
+    font-size: 160px;
+    font-weight: bold;
+    color: #FF5744;
+    line-height: 0.85;
+    margin-bottom: 0;
+    margin-top: 0;
+}
+
+.red-line-indicator {
+    display: none;
+}
+
+.bottle-visual {
+    flex: 0 0 40%;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0;
+    margin-top: 220px;
+}
+
+.bottle-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    transform: scale(1.8);
+    margin-top: 180px;
+}
+
+.tube {
+    width: 35px;
+    height: 100px;
+    background: linear-gradient(to bottom, #E8F4F8 0%, #D5E8F0 100%);
+    border: 3px solid #B8D4E6;
+    border-radius: 5px;
+    position: relative;
+    z-index: 3;
+}
+
+.bottle-cap {
+    width: 100px;
+    height: 55px;
+    background: linear-gradient(to bottom, #85C7D0 0%, #6BB5C0 100%);
+    border: 4px solid #5A9CA8;
+    border-radius: 15px 15px 0 0;
+    box-shadow: inset 0 -8px 12px rgba(0,0,0,0.15);
+    position: relative;
+    z-index: 2;
+    margin-top: -5px;
+}
+
+.bottle-neck {
+    width: 80px;
+    height: 35px;
+    background: rgba(180, 210, 230, 0.5);
+    border-left: 4px solid #B8D4E6;
+    border-right: 4px solid #B8D4E6;
+    position: relative;
+    z-index: 1;
+}
+
+.bottle {
+    width: 250px;
+    height: 420px;
+    background: rgba(200, 230, 250, 0.4);
+    border: 4px solid #B8D4E6;
+    border-radius: 0 0 50px 50px;
+    position: relative;
+    overflow: hidden;
+}
+
+.red-line {
+    position: fixed;
+    top: calc(44% - 20px);
+    left: 0;
+    width: 100vw;
+    height: 8px;
+    background: #FF5744;
+    z-index: 100;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .fill-level {
     position: absolute;
     bottom: 0;
     width: 100%;
-    height: 30%;
-    background: rgba(0, 136, 255, 0.6);
-    transition: height 0.3s;
+    background: rgba(200, 230, 250, 0.6);
+    transition: height 0.3s ease;
 }
 
-.button-label {
-    margin-top: 20px;
-    font-size: 24px;
-    color: #AAAAAA;
+/* STATE 4b: Waiting - Press Done */
+#waiting-screen {
+    background: #B8D4E6;
 }
 
-.right-section {
+.press-done-section {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 60px 40px 180px 40px;
+    position: relative;
 }
 
-.currently-dispensing {
-    text-align: center;
+.press-done-header {
+    font-size: 64px;
+    font-weight: bold;
+    color: #5A6B7B;
+    margin-bottom: 30px;
+}
+
+.press-done-main {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 60px;
+    margin-bottom: 30px;
+}
+
+.press-done-text {
+    font-size: 120px;
+    font-weight: bold;
+    color: #FF5744;
+    line-height: 1;
+    text-align: left;
+}
+
+.arrow-right {
+    font-size: 200px;
+    color: #FF5744;
+    line-height: 1;
+}
+
+.press-done-subtext {
+    font-size: 56px;
+    font-weight: bold;
+    color: #5A6B7B;
     margin-bottom: 40px;
 }
 
-.currently-dispensing p {
-    font-size: 32px;
-    color: #AAAAAA;
-}
-
-.currently-dispensing h2 {
-    font-size: 56px;
-    color: #00FF00;
-    margin: 10px 0;
-    font-weight: bold;
-}
-
-.currently-dispensing .hint {
-    font-size: 24px;
-    font-style: italic;
-}
-
-.product-counters {
-    margin-top: 40px;
-}
-
-.product-counters table {
-    width: 100%;
-    border-collapse: collapse;
+.press-done-or {
     font-size: 40px;
-}
-
-.product-counters th {
-    padding: 20px;
-    border: 3px solid #FFFFFF;
-    background: #222222;
-}
-
-.product-counters td {
-    padding: 25px;
-    border: 3px solid #FFFFFF;
-    text-align: center;
-}
-
-.product-counters .quantities td {
     font-weight: bold;
+    color: #5B8DB8;
+    margin-bottom: 100px;
 }
 
-.product-counters .prices td {
-    color: #00FF00;
+/* STATE 5: Complete/Receipt */
+#complete-screen {
+    background: #B8D4E6;
 }
 
-.product-counters .total-cell {
-    background: #333333;
+.thanks-section {
+    display: flex;
+    height: calc(100vh - 240px);
+    padding: 40px 40px 60px 40px;
+}
+
+.thanks-text {
+    flex: 1;
+    font-size: 96px;
     font-weight: bold;
-    font-size: 48px;
+    color: #5B8DB8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.2;
 }
 
-.bottom-instructions {
-    text-align: center;
-    margin-top: 30px;
-}
-
-.done-button-graphic {
-    font-size: 80px;
-    margin-bottom: 15px;
-}
-
-.bottom-instructions p {
-    font-size: 32px;
-    color: #FFAA00;
-}
-
-.timer {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    font-size: 28px;
-    color: #FFFFFF;
-}
-
-.timer.warning {
-    color: #FFAA00;
-    animation: blink 1s infinite;
-}
-
-/* Receipt Screen - ARTIST'S DESIGN */
-.receipt-container {
-    width: 100%;
-    max-width: 1000px;
-    text-align: center;
-}
-
-.receipt-title {
-    font-size: 72px;
-    margin-bottom: 60px;
-    color: #00FF00;
-}
-
-.receipt {
-    background: #FFFFFF;
-    color: #000000;
-    padding: 60px;
-    margin: 0 auto;
-    font-family: 'Courier New', monospace;
+.receipt-box {
+    flex: 1;
+    background: white;
+    padding: 30px;
+    border: 3px solid #3C4D5C;
     border-radius: 10px;
+    margin: 20px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-height: 100%;
+    overflow: hidden;
 }
 
 .receipt-header {
     font-size: 36px;
-    margin-bottom: 30px;
     font-weight: bold;
+    text-align: center;
+    margin-bottom: 15px;
+    border-bottom: 3px solid #000;
+    padding-bottom: 8px;
+    flex-shrink: 0;
 }
 
 .receipt-items {
-    margin: 30px 0;
-    text-align: left;
+    flex: 1 1 auto;
+    font-size: 20px;
+    line-height: 1.3;
+    overflow: hidden;
+    margin-bottom: 10px;
+    min-height: 0;
 }
 
 .receipt-item {
-    margin: 20px 0;
-    font-size: 32px;
-    line-height: 1.8;
+    margin: 8px 0;
+    border-bottom: 1px dashed #ccc;
+    padding-bottom: 6px;
+    word-wrap: break-word;
 }
 
 .receipt-item-name {
     font-weight: bold;
+    font-size: 22px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .receipt-item-details {
-    padding-left: 20px;
+    font-size: 20px;
+    margin-top: 3px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
-.receipt-total {
-    border-top: 3px solid #000000;
-    padding-top: 20px;
-    font-size: 40px;
+.receipt-total-line {
+    font-size: 32px;
     font-weight: bold;
-    text-align: right;
+    border-top: 3px solid #000;
+    padding-top: 12px;
+    margin-top: auto;
+    flex-shrink: 0;
 }
 
-.countdown {
-    margin-top: 40px;
-    font-size: 36px;
-    color: #FFAA00;
-}
-
-.countdown span {
-    font-size: 48px;
-    font-weight: bold;
-    color: #FF0000;
-}
-
-/* Error Screens */
+/* Error States */
 .error-content {
-    text-align: center;
+    background: #E74C3C;
+    color: white;
+    height: calc(100vh - 200px);
+    min-height: 400px;
 }
 
 .error-icon {
-    font-size: 150px;
+    font-size: 160px;
     margin-bottom: 40px;
 }
 
-.error-content h1 {
+h1 {
     font-size: 72px;
-    color: #FF0000;
-    margin-bottom: 30px;
-}
-
-.error-content h2 {
-    font-size: 48px;
     margin-bottom: 20px;
 }
 
+h2 {
+    font-size: 48px;
+}
+
 .error-code {
-    margin-top: 30px;
-    font-size: 24px;
-    color: #AAAAAA;
-    font-family: monospace;
+    font-size: 32px;
+    margin-top: 20px;
+    opacity: 0.8;
 }

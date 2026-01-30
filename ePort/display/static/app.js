@@ -1,12 +1,9 @@
 // WebSocket connection for real-time updates
 const socket = io();
 
-// Product data cache
-const productData = {
-    soap_hand: { qty: 0, price: 0 },
-    soap_dish: { qty: 0, price: 0 },
-    soap_laundry: { qty: 0, price: 0 }
-};
+// Product data cache - dynamically populated
+const productData = {};
+let productList = [];
 
 // Current state
 let currentState = 'idle';
@@ -33,6 +30,102 @@ function showScreen(screenName) {
     }
 }
 
+// Build dynamic product bar
+function buildProductBar(containerId, showTotal = true) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    // Add product columns
+    productList.forEach(product => {
+        const col = document.createElement('div');
+        col.className = 'product-column';
+        col.id = `${product.id}-column`;
+        
+        const data = productData[product.id] || { qty: 0, price: 0 };
+        
+        col.innerHTML = `
+            <div class="product-name">${product.name}</div>
+            <div class="product-qty" id="${product.id}-qty">${data.qty.toFixed(1)}${product.unit}</div>
+            <div class="product-price" id="${product.id}-price">$${data.price.toFixed(2)}</div>
+        `;
+        
+        container.appendChild(col);
+    });
+    
+    // Add total column if requested
+    if (showTotal) {
+        const totalCol = document.createElement('div');
+        totalCol.className = 'product-column total-column';
+        totalCol.innerHTML = `
+            <div class="total-label">TOTAL:</div>
+            <div class="total-amount" id="total-price">$0.00</div>
+        `;
+        container.appendChild(totalCol);
+    }
+}
+
+// WebSocket event: Load products (sent by server)
+socket.on('load_products', (data) => {
+    console.log('Products loaded:', data);
+    productList = data.products;
+    
+    // Initialize product data cache
+    productList.forEach(product => {
+        productData[product.id] = { qty: 0, price: 0 };
+    });
+    
+    // Build the single persistent product bar MFE
+    buildProductBar('product-bar');
+    
+    // Build dynamic arrows for ready and waiting screens
+    buildButtonArrows();
+    buildButtonArrowsWaiting();
+});
+
+// Build dynamic button arrows based on number of products
+function buildButtonArrows() {
+    const container = document.getElementById('button-arrows-ready');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    // Calculate width for products only (excluding total column)
+    const productCount = productList.length;
+    const totalColumns = productCount + 1; // products + total
+    const productWidthPercent = (productCount / totalColumns) * 100;
+    
+    container.style.width = `${productWidthPercent}%`;
+    
+    productList.forEach(() => {
+        const arrow = document.createElement('span');
+        arrow.textContent = '▼';
+        container.appendChild(arrow);
+    });
+}
+
+// Build dynamic button arrows for waiting screen
+function buildButtonArrowsWaiting() {
+    const container = document.getElementById('button-arrows-waiting');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    // Calculate width for products only (excluding total column)
+    const productCount = productList.length;
+    const totalColumns = productCount + 1; // products + total
+    const productWidthPercent = (productCount / totalColumns) * 100;
+    
+    container.style.width = `${productWidthPercent}%`;
+    
+    productList.forEach(() => {
+        const arrow = document.createElement('span');
+        arrow.textContent = '▼';
+        container.appendChild(arrow);
+    });
+}
+
 // WebSocket event: Change state
 socket.on('change_state', (data) => {
     console.log('State change:', data.state);
@@ -51,7 +144,7 @@ socket.on('change_state', (data) => {
 
 // WebSocket event: Update product counter
 socket.on('update_product', (data) => {
-    const { product_id, product_name, quantity, unit, price, is_active } = data;
+    const { product_id, quantity, unit, price, is_active } = data;
     
     // Update cached data
     if (productData[product_id]) {
@@ -59,54 +152,40 @@ socket.on('update_product', (data) => {
         productData[product_id].price = price;
     }
     
-    // Update display based on product ID
-    let idPrefix = '';
-    if (product_id === 'soap_hand') {
-        idPrefix = 'hand';
-    } else if (product_id === 'soap_dish') {
-        idPrefix = 'dish';
-    } else if (product_id === 'soap_laundry') {
-        idPrefix = 'laundry';
+    // Update the single product bar MFE
+    const qtyElement = document.getElementById(`${product_id}-qty`);
+    if (qtyElement) {
+        qtyElement.textContent = `${quantity.toFixed(1)}${unit}`;
     }
     
-    if (idPrefix) {
-        // Update quantity
-        const qtyElement = document.getElementById(`${idPrefix}-qty`);
-        if (qtyElement) {
-            qtyElement.textContent = `${quantity.toFixed(1)}${unit}`;
-        }
-        
-        // Update price
-        const priceElement = document.getElementById(`${idPrefix}-price`);
-        if (priceElement) {
-            priceElement.textContent = `$${price.toFixed(2)}`;
-        }
-        
-        // Highlight active product
-        const row = qtyElement ? qtyElement.parentElement : null;
-        if (row) {
-            if (is_active) {
-                row.classList.add('active-product');
+    const priceElement = document.getElementById(`${product_id}-price`);
+    if (priceElement) {
+        priceElement.textContent = `$${price.toFixed(2)}`;
+    }
+    
+    // Highlight active product column and mark purchased products
+    const column = document.getElementById(`${product_id}-column`);
+    if (column) {
+        if (is_active) {
+            column.classList.add('active');
+            column.classList.remove('purchased');
+        } else {
+            column.classList.remove('active');
+            // If product has been purchased (qty > 0), mark as purchased
+            if (quantity > 0) {
+                column.classList.add('purchased');
             } else {
-                row.classList.remove('active-product');
+                column.classList.remove('purchased');
             }
-        }
-    }
-    
-    // Update "Currently Dispensing" text
-    if (is_active) {
-        const currentProductElement = document.getElementById('current-product');
-        if (currentProductElement) {
-            currentProductElement.textContent = product_name;
         }
     }
 });
 
 // WebSocket event: Update total
 socket.on('update_total', (data) => {
-    const totalPriceElement = document.getElementById('total-price');
-    if (totalPriceElement) {
-        totalPriceElement.textContent = `$${data.total.toFixed(2)}`;
+    const totalElement = document.getElementById('total-price');
+    if (totalElement) {
+        totalElement.textContent = `$${data.total.toFixed(2)}`;
     }
 });
 
@@ -123,16 +202,14 @@ socket.on('show_receipt', (data) => {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'receipt-item';
             
-            const nameSpan = document.createElement('div');
-            nameSpan.className = 'receipt-item-name';
-            nameSpan.textContent = `${item.product_name.toUpperCase()}`;
+            // Calculate cents per ounce from price and quantity
+            const centsPerOunce = Math.round((item.price / item.quantity) * 100);
             
-            const detailsSpan = document.createElement('div');
-            detailsSpan.className = 'receipt-item-details';
-            detailsSpan.textContent = `${item.quantity.toFixed(1)}${item.unit} ................ $${item.price.toFixed(2)}`;
+            itemDiv.innerHTML = `
+                <div class="receipt-item-name">${item.product_name.toUpperCase()} ----- ${centsPerOunce}¢ per ounce</div>
+                <div class="receipt-item-details">${item.quantity.toFixed(1)}${item.unit}-------------------------$${item.price.toFixed(2)}</div>
+            `;
             
-            itemDiv.appendChild(nameSpan);
-            itemDiv.appendChild(detailsSpan);
             receiptItemsContainer.appendChild(itemDiv);
         });
     }
@@ -163,47 +240,33 @@ socket.on('show_error', (data) => {
     showScreen('error');
 });
 
-// WebSocket event: Update timer
-socket.on('update_timer', (data) => {
-    const { seconds, warning } = data;
-    const timerElement = document.getElementById('session-timer');
-    
-    if (timerElement) {
-        const minutes = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        timerElement.textContent = `⏱️ Time remaining: ${minutes}:${secs.toString().padStart(2, '0')}`;
-        
-        if (warning) {
-            timerElement.classList.add('warning');
-        } else {
-            timerElement.classList.remove('warning');
-        }
-    }
-});
-
 // Reset product data
 function resetProductData() {
-    productData.soap_hand = { qty: 0, price: 0 };
-    productData.soap_dish = { qty: 0, price: 0 };
-    productData.soap_laundry = { qty: 0, price: 0 };
-    
-    // Reset display
-    ['hand', 'dish', 'laundry'].forEach(prefix => {
-        const qtyElement = document.getElementById(`${prefix}-qty`);
-        const priceElement = document.getElementById(`${prefix}-price`);
-        
-        if (qtyElement) qtyElement.textContent = '0oz';
-        if (priceElement) priceElement.textContent = '$0.00';
+    Object.keys(productData).forEach(key => {
+        productData[key] = { qty: 0, price: 0 };
     });
     
-    const totalPriceElement = document.getElementById('total-price');
-    if (totalPriceElement) {
-        totalPriceElement.textContent = '$0.00';
-    }
+    // Reset display in the single product bar MFE
+    productList.forEach(product => {
+        const qtyElement = document.getElementById(`${product.id}-qty`);
+        if (qtyElement) {
+            qtyElement.textContent = `0.0${product.unit}`;
+        }
+        
+        const priceElement = document.getElementById(`${product.id}-price`);
+        if (priceElement) {
+            priceElement.textContent = '$0.00';
+        }
+        
+        const column = document.getElementById(`${product.id}-column`);
+        if (column) {
+            column.classList.remove('active');
+        }
+    });
     
-    const currentProductElement = document.getElementById('current-product');
-    if (currentProductElement) {
-        currentProductElement.textContent = '--';
+    const totalElement = document.getElementById('total-price');
+    if (totalElement) {
+        totalElement.textContent = '$0.00';
     }
 }
 
@@ -232,6 +295,10 @@ function startCountdown(seconds) {
 // Connection status
 socket.on('connect', () => {
     console.log('Connected to display server');
+    // Reset to idle and request products on connect
+    resetProductData();
+    showScreen('idle');
+    socket.emit('request_products');
 });
 
 socket.on('disconnect', () => {

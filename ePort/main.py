@@ -374,7 +374,17 @@ def main():
             try:
                 from .src.display_server import DisplayServer
                 logger.info("Starting customer display server...")
-                display = DisplayServer(host=DISPLAY_HOST, port=DISPLAY_PORT)
+                # Pass product info to display
+                product_info = [
+                    {
+                        'id': p.id,
+                        'name': p.name,
+                        'unit': p.unit,
+                        'price_per_unit': p.price_per_unit
+                    }
+                    for p in products
+                ]
+                display = DisplayServer(host=DISPLAY_HOST, port=DISPLAY_PORT, products=product_info)
                 display.start(background=True)
                 logger.info(f"Customer display server started on http://{DISPLAY_HOST}:{DISPLAY_PORT}")
                 time.sleep(1)  # Give server time to start

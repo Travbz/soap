@@ -21,13 +21,14 @@ class DisplayServer:
     Provides real-time updates for product counters, totals, and state transitions.
     """
     
-    def __init__(self, host: str = 'localhost', port: int = 5000):
+    def __init__(self, host: str = 'localhost', port: int = 5000, products: List[Dict] = None):
         """
         Initialize Flask server with WebSocket support
         
         Args:
             host: Server host address
             port: Server port number
+            products: List of product dictionaries with id, name, unit, price_per_unit
         """
         self.app = Flask(__name__, 
                         template_folder='../display/templates',
@@ -36,11 +37,20 @@ class DisplayServer:
         self.host = host
         self.port = port
         self.current_state = "idle"
+        self.products = products or []
         self._setup_routes()
         logger.info(f"DisplayServer initialized on {host}:{port}")
     
     def _setup_routes(self):
         """Setup Flask routes"""
+        
+        @self.app.after_request
+        def add_no_cache_headers(response):
+            """Prevent browser caching to ensure fresh state on reload"""
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            return response
         
         @self.app.route('/')
         def index():
@@ -51,6 +61,19 @@ class DisplayServer:
         def health():
             """Health check endpoint"""
             return {'status': 'ok', 'state': self.current_state}
+        
+        @self.socketio.on('connect')
+        def handle_connect():
+            """Client connected - send initial state"""
+            emit('change_state', {'state': self.current_state})
+            if hasattr(self, 'products'):
+                emit('load_products', {'products': self.products})
+        
+        @self.socketio.on('request_products')
+        def handle_request_products():
+            """Send product list to client"""
+            if hasattr(self, 'products'):
+                emit('load_products', {'products': self.products})
     
     def start(self, background: bool = True) -> None:
         """
