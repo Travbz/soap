@@ -49,3 +49,4 @@ jobs:
           python3.7 -m py_compile ePort/src/product.py
           python3.7 -m py_compile ePort/src/product_manager.py
           python3.7 -m py_compile ePort/src/transaction_tracker.py
+          python3.7 -m py_compile ePort/src/display_server.py

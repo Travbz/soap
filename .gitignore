@@ -133,3 +133,5 @@ dmypy.json
 # Project-specific
 *.pdf
 !documentation/*.pdf
+
+assets/*

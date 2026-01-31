@@ -1,514 +1,1105 @@
 # Product Requirements Document: Customer Guidance Display System
 
-**Version:** 1.0  
-**Status:** Draft  
+**Version:** 2.0  
+**Status:** In Development  
 **Date:** January 2026  
+**Updated:** January 27, 2026  
 **Related:** PRD-MultiProduct.md
 
 ---
 
 ## Executive Summary
 
-Add visual guidance system to display graphics, videos, and instructions to customers at key points in the transaction flow, improving user experience and reducing confusion.
+Add visual guidance system to display real-time transaction information, product counters, and instructions to customers throughout the transaction flow. Based on artist concept designs and actual customer journey analysis.
 
 ---
 
 ## Problem Statement
 
-**Current:** Text-only terminal output, customers unsure when to swipe card, which button to press, or when transaction is complete.
+**Current:** Text-only terminal output with timestamps and log levels. Customers see debug messages, unclear instructions, and no real-time feedback during dispensing.
 
-**Desired:** Visual guidance (images/videos/animations) at each step to guide customers through the transaction process.
+**Desired:** Clean visual interface showing live product counters, transaction totals, warnings, and clear instructions at each step. No technical logs visible to customers.
 
 ---
 
 ## Goals & Non-Goals
 
 ### Goals
-- ✅ Display graphics/videos at specific transaction states
-- ✅ Support multiple media types (images, GIFs, MP4)
-- ✅ Easy content management (file-based, no code changes)
-- ✅ State-driven display (triggered by transaction events)
+- ✅ Real-time product counters (quantity and price per product)
+- ✅ Live transaction total updates during dispensing
+- ✅ Clear visual warnings (overfill prevention, stop early)
+- ✅ Product selection guidance (which button is which)
+- ✅ Itemized receipt display after transaction
+- ✅ Customer-friendly interface (no logs, timestamps, or debug info)
+- ✅ State-driven display matching actual customer journey
 
 ### Non-Goals
-- ❌ Touchscreen interaction (buttons only)
-- ❌ Real-time video streaming
+- ❌ Touchscreen interaction (physical buttons only)
 - ❌ Audio playback (silent operation)
+- ❌ Video animations (static graphics and HTML/CSS animations only)
+- ❌ Complex multimedia (keep it lightweight for Raspberry Pi)
 
 ---
 
 ## User Stories
 
-### US-1: Customer Sees Card Prompt
+### US-1: Customer Knows When to Swipe Card
 **As a** customer  
-**I want to** see a graphic showing how to swipe my card  
-**So that** I know what to do first
+**I want to** see clear instructions to swipe my card when the machine is idle  
+**So that** I know how to start a transaction
 
-**Acceptance:** Display shows card swipe animation when machine is idle
+**Acceptance:** Display shows "SWIPE CARD TO BEGIN" with card graphic when idle
 
 ---
 
-### US-2: Customer Sees Product Selection Guide
+### US-2: Customer Sees Live Product Counters
 **As a** customer  
-**I want to** see which button corresponds to which product  
-**So that** I select the correct product
+**I want to** see real-time quantity and price for each product I'm dispensing  
+**So that** I know exactly how much I've taken and what it costs
 
-**Acceptance:** Display shows product layout diagram with button positions
+**Acceptance:** Display updates in real-time showing "Hand Soap: 7.2oz $1.08" as I dispense
 
 ---
 
-### US-3: Owner Updates Display Content
+### US-3: Customer Receives Overfill Warning
+**As a** customer  
+**I want to** see a clear warning about overfilling my container  
+**So that** I stop before it overflows
+
+**Acceptance:** Display shows "PAY ATTENTION - STOP EARLY!" with container visual and red line
+
+---
+
+### US-4: Customer Knows Which Button is Which Product
+**As a** customer  
+**I want to** see which physical button corresponds to which product  
+**So that** I don't accidentally dispense the wrong product
+
+**Acceptance:** Display shows button layout diagram after card authorization
+
+---
+
+### US-5: Customer Sees Running Transaction Total
+**As a** customer  
+**I want to** see my total cost update as I dispense multiple products  
+**So that** I can stay within my budget
+
+**Acceptance:** Display shows "TOTAL: $2.12" that updates live during dispensing
+
+---
+
+### US-6: Customer Receives Itemized Receipt
+**As a** customer  
+**I want to** see a detailed receipt after pressing DONE  
+**So that** I know exactly what I paid for
+
+**Acceptance:** Display shows "THANKS FOR REFILLING!" with itemized list and total
+
+---
+
+### US-7: Owner Updates Display Styling
 **As a** company owner  
-**I want to** replace display content by uploading new image files  
-**So that** I can update promotions or instructions without technical help
+**I want to** update colors, fonts, and layout via HTML/CSS  
+**So that** I can match store branding without coding
 
-**Acceptance:** Owner can replace files in media folder, content updates on restart
+**Acceptance:** Owner can edit CSS file, changes apply on browser refresh
 
 ---
 
 ## Technical Design
 
-### Architecture
+### Architecture Decision: Web-Based Display
+
+**Decision:** Use Chromium browser in kiosk mode with Flask backend
+
+**Rationale:**
+- Artist's sketch maps directly to HTML/CSS layout (tables, text, containers)
+- Real-time updates via WebSocket (live product counters)
+- Owner can modify styling without Python knowledge
+- Proven on Raspberry Pi 4
+- Rapid prototyping and iteration
+- Responsive design handles different monitor sizes
+
+**Alternatives Considered:**
+- pygame: Complex layout implementation, harder to style
+- Qt/QML: Heavy dependency, steeper learning curve
+- Native Python GUI: Poor performance for real-time updates
+
+### System Architecture
 
 ```
 ┌─────────────────────────────────────────┐
 │          main.py                        │
-│      (State Machine)                    │
+│      (Transaction Logic)                │
+│  - Payment processing                   │
+│  - Product dispensing                   │
+│  - Transaction tracking                 │
 └──────────┬──────────────────────────────┘
-           │
+           │ HTTP POST / WebSocket
            ▼
 ┌─────────────────────────────────────────┐
-│      DisplayManager                     │
-│   (New Class - src/display.py)          │
+│      Flask Display Server               │
+│   (src/display_server.py)               │
 ├─────────────────────────────────────────┤
-│ - show_state(state_name)                │
-│ - show_media(media_path)                │
-│ - clear()                               │
+│ REST API Endpoints:                     │
+│ - POST /api/state (change state)        │
+│ - POST /api/update (product counter)    │
+│ - POST /api/receipt (show receipt)      │
+│                                         │
+│ WebSocket Events:                       │
+│ - emit('update_product', data)          │
+│ - emit('show_receipt', data)            │
+│ - emit('change_state', state)           │
 └──────────┬──────────────────────────────┘
-           │
+           │ Serves HTML/CSS/JS
            ▼
 ┌─────────────────────────────────────────┐
-│     Display Config                      │
-│  (config/display_config.json)           │
+│  Chromium Browser (Kiosk Mode)          │
+│  http://localhost:5000                  │
 ├─────────────────────────────────────────┤
-│ {                                       │
-│   "states": {                           │
-│     "idle": {                           │
-│       "media": "swipe_card.gif",        │
-│       "duration": null                  │
-│     },                                  │
-│     "dispensing": {                     │
-│       "media": "hold_button.mp4",       │
-│       "duration": null                  │
-│     }                                   │
-│   }                                     │
-│ }                                       │
+│ - Fullscreen display                    │
+│ - Auto-start on boot                    │
+│ - No browser UI elements                │
+│ - Real-time WebSocket connection        │
 └─────────────────────────────────────────┘
            │
            ▼
 ┌─────────────────────────────────────────┐
-│      Media Files                        │
-│  (media/ directory)                     │
+│      HTML/CSS/JavaScript                │
+│  (display/templates/)                   │
 ├─────────────────────────────────────────┤
-│ - swipe_card.gif                        │
-│ - hold_button.mp4                       │
-│ - product_layout.png                    │
-│ - transaction_complete.gif              │
+│ - index.html (layout)                   │
+│ - styles.css (branding)                 │
+│ - app.js (real-time updates)            │
 └─────────────────────────────────────────┘
 ```
 
 ---
 
-## Transaction States & Media
+## Customer Journey & Display States
 
-### State Flow with Display Content
+### Complete State Flow (7 States)
 
 ```
-┌──────────────────────┐
-│  STATE: idle         │
-│  DISPLAY:            │
-│  - swipe_card.gif    │
-│  "Swipe card to      │
-│   begin"             │
+┌──────────────────────────────────────────────────────────┐
+│  STATE 1: idle                                           │
+│  TRIGGER: Machine ready, no transaction                  │
+│  CODE: Waiting for ePort status                          │
+├──────────────────────────────────────────────────────────┤
+│  DISPLAY:                                                │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │                                                    │  │
+│  │         [CARD GRAPHIC with swipe animation]       │  │
+│  │                                                    │  │
+│  │              SWIPE OR TAP CARD                     │  │
+│  │                 TO BEGIN                           │  │
+│  │                                                    │  │
+│  └────────────────────────────────────────────────────┘  │
+└──────────────────────┬───────────────────────────────────┘
+                       │ Customer swipes card
+                       ▼
+┌──────────────────────────────────────────────────────────┐
+│  STATE 2: authorizing                                    │
+│  TRIGGER: Card swiped, requesting authorization          │
+│  CODE: safe_authorization_request(payment)               │
+├──────────────────────────────────────────────────────────┤
+│  DISPLAY:                                                │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │                                                    │  │
+│  │         [PROCESSING SPINNER animation]            │  │
+│  │                                                    │  │
+│  │           AUTHORIZING PAYMENT...                   │  │
+│  │              Please wait                           │  │
+│  │                                                    │  │
+│  └────────────────────────────────────────────────────┘  │
+└──────────┬───────────────────┬───────────────────────────┘
+           │ Approved          │ Declined
+           ▼                   ▼
+┌──────────────────────┐    ┌─────────────────────────────┐
+│  STATE 3: ready      │    │  STATE 4: declined          │
+│  (Product Selection) │    │  TRIGGER: Card declined     │
+│  TRIGGER: Auth OK    │    │  CODE: status.startswith    │
+│  CODE: status == b'9'│    │        (b'3')               │
+├──────────────────────┤    ├─────────────────────────────┤
+│  DISPLAY:            │    │  DISPLAY:                   │
+│  ┌────────────────┐  │    │  ┌───────────────────────┐  │
+│  │ AUTHORIZED ✓   │  │    │  │        [X ICON]       │  │
+│  │                │  │    │  │                       │  │
+│  │ [Button Layout]│  │    │  │   CARD DECLINED       │  │
+│  │  Left: Hand    │  │    │  │  Please try another   │  │
+│  │  Mid: Dish     │  │    │  │       card            │  │
+│  │  Right: Laundry│  │    │  └───────────────────────┘  │
+│  │                │  │    │  (Show 5s, return to idle)  │
+│  │ HOLD BUTTON TO │  │    └─────────────────────────────┘
+│  │ DISPENSE       │  │
+│  │ Press DONE when│  │
+│  │ finished       │  │
+│  └────────────────┘  │
 └──────┬───────────────┘
-       │ Card swiped
+       │ Customer presses product button
        ▼
-┌──────────────────────┐
-│  STATE: authorizing  │
-│  DISPLAY:            │
-│  - processing.gif    │
-│  "Authorizing..."    │
-└──────┬───────────────┘
-       │ Approved
-       ▼
-┌──────────────────────┐
-│  STATE: ready        │
-│  DISPLAY:            │
-│  - product_select.png│
-│  "Select product"    │
-└──────┬───────────────┘
-       │ Button pressed
-       ▼
-┌──────────────────────┐
-│  STATE: dispensing   │
-│  DISPLAY:            │
-│  - hold_button.mp4   │
-│  "Hold to dispense"  │
-│  + running total     │
-└──────┬───────────────┘
-       │ Done pressed
-       ▼
-┌──────────────────────┐
-│  STATE: complete     │
-│  DISPLAY:            │
-│  - thank_you.gif     │
-│  "Thank you!"        │
-│  + receipt summary   │
-└──────┬───────────────┘
-       │ Timeout
-       ▼
-   (back to idle)
+┌───────────────────────────────────────────────────────────┐
+│  STATE 5: dispensing (ARTIST'S PRIMARY SCREEN)            │
+│  TRIGGER: Product button pressed                          │
+│  CODE: handle_dispensing(), on_flowmeter_pulse()          │
+├───────────────────────────────────────────────────────────┤
+│  DISPLAY (Based on Artist's Sketch):                      │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │ ⚠️  PAY ATTENTION - STOP EARLY!                     │  │
+│  │                                                     │  │
+│  │  [Container Visual]      Currently Dispensing:     │  │
+│  │  ┌──────────────┐        ► HAND SOAP ◄             │  │
+│  │  │              │        (Hold button)              │  │
+│  │  │   ▓▓▓▓▓▓▓    │                                   │  │
+│  │  │──RED LINE────│      Products This Transaction:  │  │
+│  │  │              │      ┌────────┬──────┬─────────┐ │  │
+│  │  │              │      │ HAND   │ DISH │ LAUNDRY │ │  │
+│  │  └──────────────┘      ├────────┼──────┼─────────┤ │  │
+│  │  DON'T OVERFILL       │ 7.2oz  │ 8.7oz│  0oz    │ │  │
+│  │                        │ $1.08  │ $1.04│  $0.00  │ │  │
+│  │                        └────────┴──────┴─────────┘ │  │
+│  │                                                     │  │
+│  │                        TOTAL: $2.12                 │  │
+│  │                                                     │  │
+│  │  [DONE BUTTON GRAPHIC]                              │  │
+│  │  Press DONE or pick another product to continue    │  │
+│  │                                                     │  │
+│  │  ⏱️ Time remaining: 4:23                            │  │
+│  └─────────────────────────────────────────────────────┘  │
+│                                                           │
+│  REAL-TIME UPDATES:                                       │
+│  - Product counters update on each flowmeter pulse       │
+│  - Total recalculates instantly                           │
+│  - Current product highlights when button pressed         │
+│  - Timer counts down from 5:00 (max session)             │
+│  - Warning shows at 45s inactivity                        │
+└──────────┬────────────────────────────────────────────────┘
+           │ Customer presses DONE button
+           ▼
+┌───────────────────────────────────────────────────────────┐
+│  STATE 6: complete (ARTIST'S RECEIPT SCREEN)              │
+│  TRIGGER: Done button pressed, transaction sent           │
+│  CODE: on_done_button(), transaction.get_summary()        │
+├───────────────────────────────────────────────────────────┤
+│  DISPLAY (Based on Artist's Sketch):                      │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │                                                     │  │
+│  │           THANKS FOR REFILLING!                     │  │
+│  │                                                     │  │
+│  │           Your Receipt:                             │  │
+│  │  ┌───────────────────────────────────────────────┐ │  │
+│  │  │                                               │ │  │
+│  │  │  HANDSOAP    19kg                             │ │  │
+│  │  │  3.2oz .................... $7.50            │ │  │
+│  │  │                                               │ │  │
+│  │  │  DISH SOAP   13kg                             │ │  │
+│  │  │  7.9oz .................... $8.03            │ │  │
+│  │  │                                               │ │  │
+│  │  │  LAUNDRY     10kg                             │ │  │
+│  │  │  10.8oz ...................  $1.28           │ │  │
+│  │  │                                               │ │  │
+│  │  │  ─────────────────────────────────────        │ │  │
+│  │  │  TOTAL ........................ $11.03        │ │  │
+│  │  │                                               │ │  │
+│  │  └───────────────────────────────────────────────┘ │  │
+│  │                                                     │  │
+│  │           Returning to home in 8...                 │  │
+│  │                                                     │  │
+│  └─────────────────────────────────────────────────────┘  │
+│                                                           │
+│  BEHAVIOR:                                                │
+│  - Display for 10 seconds                                 │
+│  - Show countdown timer                                   │
+│  - Auto-return to idle state                              │
+└──────────┬────────────────────────────────────────────────┘
+           │ Timeout (10s)
+           ▼
+      (Return to STATE 1: idle)
+
+
+┌───────────────────────────────────────────────────────────┐
+│  STATE 7: error (Exception Handling)                      │
+│  TRIGGER: Payment error, hardware failure, timeout        │
+│  CODE: except MachineHardwareError, PaymentProtocolError  │
+├───────────────────────────────────────────────────────────┤
+│  DISPLAY:                                                 │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │                                                     │  │
+│  │              [ERROR ICON]                           │  │
+│  │                                                     │  │
+│  │          MACHINE ERROR                              │  │
+│  │                                                     │  │
+│  │     Please contact staff for assistance             │  │
+│  │                                                     │  │
+│  │     Error code: [error details]                     │  │
+│  │                                                     │  │
+│  └─────────────────────────────────────────────────────┘  │
+│                                                           │
+│  BEHAVIOR:                                                │
+│  - Display for 10 seconds or until reset                  │
+│  - Log full error details                                 │
+│  - Attempt machine reset                                  │
+│  - Return to idle if recoverable                          │
+└───────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## DisplayManager Class
+## Flask Display Server
 
-**Location:** `/Users/travops/soap/ePort/src/display.py`
+**Location:** `ePort/src/display_server.py`
 
-### Class Design
+### Server Class Design
 
 ```python
-class DisplayManager:
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
+from typing import List, Dict
+import threading
+
+class DisplayServer:
     """
-    Manages display output for customer guidance
+    Web-based display server using Flask and WebSocket
     """
     
-    def __init__(self, config_path: str, media_dir: str):
+    def __init__(self, host: str = 'localhost', port: int = 5000):
         """
-        Args:
-            config_path: Path to display_config.json
-            media_dir: Directory containing media files
-        """
-        self.config = self._load_config(config_path)
-        self.media_dir = media_dir
-        self.current_state = None
-        self._init_display()
-    
-    def show_state(self, state_name: str) -> None:
-        """
-        Display content for a specific transaction state
+        Initialize Flask server with WebSocket support
         
         Args:
-            state_name: State name (idle, authorizing, ready, etc.)
+            host: Server host address
+            port: Server port number
         """
+        self.app = Flask(__name__, 
+                        template_folder='../display/templates',
+                        static_folder='../display/static')
+        self.socketio = SocketIO(self.app, cors_allowed_origins="*")
+        self.host = host
+        self.port = port
+        self.current_state = "idle"
+        self._setup_routes()
     
-    def show_media(self, media_filename: str, duration: Optional[int] = None) -> None:
+    def start(self, background: bool = True) -> None:
         """
-        Display specific media file
+        Start the Flask server
         
         Args:
-            media_filename: Media file name in media directory
-            duration: Auto-hide after N seconds (None = indefinite)
+            background: If True, run in background thread
         """
+        if background:
+            thread = threading.Thread(
+                target=lambda: self.socketio.run(
+                    self.app, 
+                    host=self.host, 
+                    port=self.port,
+                    debug=False
+                )
+            )
+            thread.daemon = True
+            thread.start()
+        else:
+            self.socketio.run(self.app, host=self.host, port=self.port)
     
-    def show_text(self, text: str, overlay: bool = True) -> None:
+    def change_state(self, state: str) -> None:
         """
-        Display text (with or without overlay on media)
+        Change display state
         
         Args:
-            text: Text to display
-            overlay: If True, overlay on current media; if False, text only
+            state: State name (idle, authorizing, ready, dispensing, complete, error)
         """
+        self.current_state = state
+        self.socketio.emit('change_state', {'state': state})
     
-    def clear(self) -> None:
-        """Clear display"""
-    
-    def update_transaction_info(self, items: List[Dict], total: float) -> None:
+    def update_product(self, product_id: str, product_name: str, 
+                      quantity: float, unit: str, price: float,
+                      is_active: bool = False) -> None:
         """
-        Update transaction summary overlay
+        Update product counter in real-time
         
         Args:
-            items: List of dispensed items
-            total: Running total price
+            product_id: Product identifier (soap_hand, soap_dish, etc.)
+            product_name: Display name
+            quantity: Current quantity dispensed
+            unit: Unit of measurement (oz, ml)
+            price: Current price for this product
+            is_active: Whether this product is currently being dispensed
         """
+        self.socketio.emit('update_product', {
+            'product_id': product_id,
+            'product_name': product_name,
+            'quantity': quantity,
+            'unit': unit,
+            'price': price,
+            'is_active': is_active
+        })
+    
+    def update_total(self, total: float) -> None:
+        """
+        Update transaction total
+        
+        Args:
+            total: Current transaction total in dollars
+        """
+        self.socketio.emit('update_total', {'total': total})
+    
+    def show_receipt(self, items: List[Dict], total: float) -> None:
+        """
+        Show final receipt
+        
+        Args:
+            items: List of items with {product_name, quantity, unit, price}
+            total: Final transaction total
+        """
+        self.change_state('complete')
+        self.socketio.emit('show_receipt', {
+            'items': items,
+            'total': total
+        })
+    
+    def show_error(self, error_message: str, error_code: str = None) -> None:
+        """
+        Show error screen
+        
+        Args:
+            error_message: User-friendly error message
+            error_code: Optional error code for staff
+        """
+        self.change_state('error')
+        self.socketio.emit('show_error', {
+            'message': error_message,
+            'code': error_code
+        })
+    
+    def update_timer(self, seconds_remaining: int, warning: bool = False) -> None:
+        """
+        Update inactivity/session timer
+        
+        Args:
+            seconds_remaining: Seconds until timeout
+            warning: If True, show warning styling
+        """
+        self.socketio.emit('update_timer', {
+            'seconds': seconds_remaining,
+            'warning': warning
+        })
 ```
 
 ---
 
-## Configuration Format
+## Configuration
 
-### display_config.json
+### Display Configuration (config/__init__.py)
 
-**Location:** `/Users/travops/soap/ePort/config/display_config.json`
+```python
+# Display server settings
+DISPLAY_ENABLED = True  # Set to False to disable display (testing mode)
+DISPLAY_HOST = 'localhost'
+DISPLAY_PORT = 5000
+DISPLAY_AUTO_START = True  # Auto-start server with main.py
 
-```json
-{
-  "display": {
-    "width": 1920,
-    "height": 1080,
-    "fullscreen": true,
-    "background_color": "#000000"
-  },
-  "states": {
-    "idle": {
-      "media": "swipe_card.gif",
-      "text": "Swipe or tap card to begin",
-      "text_position": "bottom",
-      "duration": null,
-      "loop": true
-    },
-    "authorizing": {
-      "media": "processing.gif",
-      "text": "Authorizing payment...",
-      "text_position": "center",
-      "duration": null,
-      "loop": true
-    },
-    "declined": {
-      "media": "declined.png",
-      "text": "Card declined. Please try another card.",
-      "text_position": "bottom",
-      "duration": 5,
-      "loop": false
-    },
-    "ready": {
-      "media": "product_layout.png",
-      "text": "Select product and hold button to dispense",
-      "text_position": "bottom",
-      "duration": null,
-      "loop": false
-    },
-    "dispensing": {
-      "media": "hold_button.mp4",
-      "text": null,
-      "text_position": "top",
-      "duration": null,
-      "loop": true,
-      "overlay_transaction": true
-    },
-    "complete": {
-      "media": "thank_you.gif",
-      "text": "Thank you for your purchase!",
-      "text_position": "bottom",
-      "duration": 5,
-      "loop": false
-    },
-    "error": {
-      "media": "error.png",
-      "text": "Error occurred. Please contact staff.",
-      "text_position": "center",
-      "duration": 10,
-      "loop": false
-    }
-  },
-  "fonts": {
-    "main": {
-      "family": "Arial",
-      "size": 48,
-      "color": "#FFFFFF",
-      "bold": true
-    },
-    "transaction": {
-      "family": "Courier",
-      "size": 36,
-      "color": "#00FF00"
-    }
-  }
+# Display timeouts
+RECEIPT_DISPLAY_TIMEOUT = 10  # Seconds to show receipt before returning to idle
+ERROR_DISPLAY_TIMEOUT = 10    # Seconds to show error before reset attempt
+
+# Display styling (can be overridden in CSS)
+DISPLAY_WARNING_COLOR = '#FF0000'  # Red for warnings
+DISPLAY_SUCCESS_COLOR = '#00FF00'  # Green for success
+DISPLAY_BACKGROUND = '#000000'     # Black background
+DISPLAY_TEXT_COLOR = '#FFFFFF'     # White text
+```
+
+### CSS Styling (display/static/styles.css)
+
+Owner can customize colors, fonts, sizing without touching Python:
+
+```css
+/* Main layout */
+body {
+    background: #000000;
+    color: #FFFFFF;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* Warning section */
+.warning {
+    color: #FF0000;
+    font-size: 48px;
+    font-weight: bold;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Container visual */
+.container-visual {
+    width: 400px;
+    height: 600px;
+    border: 3px solid #FFFFFF;
+    position: relative;
+    margin: 20px auto;
+}
+
+.red-line {
+    position: absolute;
+    top: 20%;
+    width: 100%;
+    border-top: 4px solid #FF0000;
+}
+
+/* Product counters table */
+.product-counters {
+    font-size: 36px;
+    margin: 40px auto;
+    width: 90%;
+}
+
+.product-counters table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.product-counters td {
+    padding: 15px;
+    border: 1px solid #FFFFFF;
+}
+
+.active-product {
+    background-color: #333333;
+    font-weight: bold;
+}
+
+/* Receipt styling */
+.receipt {
+    background: #FFFFFF;
+    color: #000000;
+    padding: 40px;
+    margin: 40px auto;
+    width: 80%;
+    max-width: 800px;
+    font-family: 'Courier New', monospace;
+}
+
+/* Timer warning */
+.timer-warning {
+    color: #FFAA00;
+    font-size: 32px;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.5; }
 }
 ```
 
 ---
 
-## Display Technology Options
+## Technology Stack (DECISION RECORD)
 
-### Option 1: HDMI Display + pygame (Recommended)
-**Pros:**
-- Native Python library
-- Good for Raspberry Pi
-- Handles images, GIFs, video
-- Fullscreen support
+### Selected: Web-Based Display with Chromium Kiosk Mode
 
-**Cons:**
-- Requires display hardware
-- Video playback can be resource-intensive
+**Final Decision:** Flask backend + HTML/CSS/JavaScript frontend + Chromium browser
 
-**Dependencies:** `pygame`, `opencv-python` (for video)
+**Key Reasons:**
+1. **Artist's layout maps perfectly to HTML/CSS** - Tables, text positioning, container visuals
+2. **Real-time updates trivial with WebSocket** - Product counters update instantly
+3. **Owner can modify styling** - Edit CSS without Python knowledge
+4. **Rapid iteration** - Build and test UI in browser dev tools
+5. **Proven on Raspberry Pi** - Chromium runs well on RPi 4
+6. **No custom rendering engine** - Browser handles everything
+
+### Technology Components
+
+**Backend:**
+- Flask 2.0+ (web server)
+- Flask-SocketIO (WebSocket support for real-time updates)
+- Python 3.7+ (existing requirement)
+
+**Frontend:**
+- HTML5 (structure)
+- CSS3 (styling, animations)
+- JavaScript (real-time updates via WebSocket)
+- Socket.IO client library
+
+**Display:**
+- Chromium browser in kiosk mode
+- Auto-start on boot
+- Fullscreen, no UI elements
+- URL: `http://localhost:5000`
+
+### Alternatives Considered & Rejected
+
+**pygame:**
+- ❌ Complex custom layout engine needed
+- ❌ Manual text positioning and sizing
+- ❌ Harder to match artist's vision precisely
+- ❌ Owner cannot easily update styling
+
+**PyQt5/QML:**
+- ❌ Heavy dependency (200MB+)
+- ❌ Steeper learning curve
+- ❌ Overkill for this use case
+
+**Native Python GUI (Tkinter):**
+- ❌ Poor performance for real-time updates
+- ❌ Limited styling capabilities
+- ❌ Outdated appearance
 
 ---
 
-### Option 2: HDMI Display + PyQt5
-**Pros:**
-- Professional UI framework
-- Excellent video support
-- Smooth animations
-
-**Cons:**
-- Heavier dependency
-- More complex setup
-
-**Dependencies:** `PyQt5`, `python-vlc`
-
----
-
-### Option 3: Web-based Display
-**Pros:**
-- Easy content updates
-- Use HTML5/CSS for layout
-- Browser handles all media types
-
-**Cons:**
-- Requires browser process
-- More complex architecture
-
-**Dependencies:** `flask`, Chromium browser
-
----
-
-**Recommendation:** **Option 1 (pygame)** - Best balance for Raspberry Pi
-
----
-
-## Media File Structure
+## File Structure
 
 ```
-/Users/travops/soap/ePort/
-├── media/
-│   ├── idle/
-│   │   ├── swipe_card.gif           # Card swipe animation
-│   │   └── swipe_card_alt.mp4       # Alternative animation
-│   ├── authorizing/
-│   │   └── processing.gif           # Loading spinner
-│   ├── ready/
-│   │   ├── product_layout.png       # Product button diagram
-│   │   └── instructions.mp4         # Video instructions
-│   ├── dispensing/
-│   │   ├── hold_button.mp4          # Hand holding button
-│   │   └── pour_animation.gif       # Product pouring
-│   ├── complete/
-│   │   ├── thank_you.gif            # Thank you animation
-│   │   └── receipt.png              # Receipt display
-│   └── error/
-│       ├── declined.png             # Card declined graphic
-│       └── error.png                # Generic error
-└── config/
-    └── display_config.json          # Display configuration
+ePort/
+├── src/
+│   ├── display_server.py           # Flask server (NEW)
+│   ├── payment.py                  # Existing
+│   ├── machine.py                  # Existing
+│   └── ...
+├── display/                        # NEW DIRECTORY
+│   ├── templates/
+│   │   ├── index.html              # Main display layout
+│   │   ├── idle.html               # Swipe card screen
+│   │   ├── authorizing.html        # Processing screen
+│   │   ├── ready.html              # Product selection screen
+│   │   ├── dispensing.html         # Live counter screen (artist's main)
+│   │   ├── complete.html           # Receipt screen (artist's receipt)
+│   │   └── error.html              # Error screen
+│   └── static/
+│       ├── styles.css              # Main stylesheet
+│       ├── app.js                  # WebSocket client & updates
+│       └── images/
+│           ├── card_graphic.svg    # Card swipe visual
+│           ├── spinner.gif         # Loading animation
+│           ├── container.svg       # Container with red line
+│           ├── button_layout.svg   # Button diagram
+│           └── logo.png            # Store branding (optional)
+├── config/
+│   └── __init__.py                 # Add DISPLAY_* constants
+└── main.py                         # Integration point
+```
+
+### Key Files
+
+**display/templates/dispensing.html** - Artist's primary screen:
+```html
+<div class="dispensing-screen">
+    <div class="warning">⚠️ PAY ATTENTION - STOP EARLY!</div>
+    
+    <div class="main-content">
+        <div class="container-visual">
+            <div class="red-line"></div>
+            <div class="fill-level" id="fill-level"></div>
+            <p>DON'T OVERFILL</p>
+        </div>
+        
+        <div class="product-info">
+            <p class="currently-dispensing">
+                Currently Dispensing: <span id="current-product">--</span>
+            </p>
+            
+            <table class="product-counters">
+                <tr>
+                    <th>HAND</th>
+                    <th>DISH</th>
+                    <th>LAUNDRY</th>
+                    <th>TOTAL</th>
+                </tr>
+                <tr>
+                    <td id="hand-qty">0oz</td>
+                    <td id="dish-qty">0oz</td>
+                    <td id="laundry-qty">0oz</td>
+                    <td id="total-qty">0oz</td>
+                </tr>
+                <tr>
+                    <td id="hand-price">$0.00</td>
+                    <td id="dish-price">$0.00</td>
+                    <td id="laundry-price">$0.00</td>
+                    <td id="total-price">$0.00</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    
+    <div class="instructions">
+        <img src="/static/images/done_button.svg" alt="Done Button">
+        <p>Press DONE or pick another product to continue</p>
+    </div>
+    
+    <div class="timer" id="session-timer">Time remaining: 5:00</div>
+</div>
+```
+
+**display/templates/complete.html** - Artist's receipt screen:
+```html
+<div class="receipt-screen">
+    <h1>THANKS FOR REFILLING!</h1>
+    
+    <div class="receipt">
+        <p class="receipt-header">Your Receipt:</p>
+        <div id="receipt-items">
+            <!-- Populated by JavaScript -->
+        </div>
+        <div class="receipt-total">
+            TOTAL ................ $<span id="receipt-total">0.00</span>
+        </div>
+    </div>
+    
+    <p class="countdown">Returning to home in <span id="countdown">10</span>...</p>
+</div>
 ```
 
 ---
 
 ## Integration with main.py
 
-### State Transitions with Display Updates
+### Main Entry Point Modifications
 
 ```python
-# main.py modifications
+# main.py - Add display server integration
 
-from .src.display import DisplayManager
-from .config import DISPLAY_CONFIG_PATH, MEDIA_DIR
+from .src.display_server import DisplayServer
+from .config import DISPLAY_ENABLED, DISPLAY_HOST, DISPLAY_PORT
 
 def main():
-    # ... existing setup ...
+    """Main entry point with display integration"""
     
-    # Initialize display manager
-    display = DisplayManager(
-        config_path=DISPLAY_CONFIG_PATH,
-        media_dir=MEDIA_DIR
-    )
+    # ... existing GPIO and serial setup ...
+    
+    # Initialize display server (if enabled)
+    display = None
+    if DISPLAY_ENABLED:
+        try:
+            display = DisplayServer(host=DISPLAY_HOST, port=DISPLAY_PORT)
+            display.start(background=True)
+            logger.info("Display server started on http://{}:{}".format(
+                DISPLAY_HOST, DISPLAY_PORT
+            ))
+            time.sleep(1)  # Give server time to start
+        except Exception as e:
+            logger.error(f"Failed to start display server: {e}")
+            logger.warning("Continuing without display...")
+            display = None
     
     # Main loop
     while True:
-        # Idle state
-        display.show_state("idle")
-        
-        status = safe_status_check(payment)
-        
-        if status == b'6':  # Disabled
-            # Request authorization
-            display.show_state("authorizing")
-            safe_authorization_request(payment, AUTH_AMOUNT_CENTS)
+        try:
+            # STATE 1: Idle - waiting for card
+            if display:
+                display.change_state("idle")
             
-            # Check result
-            auth_status = safe_status_check(payment)
+            status = safe_status_check(payment)
             
-            if auth_status == b'9':  # Approved
-                display.show_state("ready")
-            elif auth_status.startswith(b'3'):  # Declined
-                display.show_state("declined")
-                time.sleep(5)  # Show for 5 seconds
-        
-        elif status == b'9':  # Authorized
-            # Customer can dispense
-            display.show_state("dispensing")
+            if status == b'6':  # Disabled - ready for card
+                # Customer swipes card
+                # STATE 2: Authorizing
+                if display:
+                    display.change_state("authorizing")
+                
+                safe_authorization_request(payment, AUTH_AMOUNT_CENTS)
+                time.sleep(AUTHORIZATION_STATUS_CHECK_DELAY)
+                
+                auth_status = safe_status_check(payment)
+                
+                if auth_status == b'9':  # Approved
+                    # STATE 3: Ready - show product selection
+                    if display:
+                        display.change_state("ready")
+                    
+                elif auth_status.startswith(b'3'):  # Declined
+                    # STATE 4: Declined
+                    if display:
+                        display.change_state("declined")
+                    time.sleep(5)
+                    continue
             
-            try:
-                handle_dispensing(machine, payment, display)
-            except Exception as e:
-                display.show_state("error")
-                logger.error(f"Error: {e}")
-        
-        time.sleep(STATUS_POLL_INTERVAL)
+            elif status == b'9':  # Authorized - ready to dispense
+                # STATE 5: Dispensing (artist's main screen)
+                if display:
+                    display.change_state("dispensing")
+                
+                try:
+                    handle_dispensing(machine, payment, product_manager, 
+                                    transaction_tracker, display)
+                except Exception as e:
+                    # STATE 7: Error
+                    if display:
+                        display.show_error(
+                            "Machine error. Please contact staff.",
+                            error_code=str(e)
+                        )
+                    logger.error(f"Dispensing error: {e}")
+                    time.sleep(ERROR_DISPLAY_TIMEOUT)
+            
+            time.sleep(STATUS_POLL_INTERVAL)
+            
+        except KeyboardInterrupt:
+            logger.info("Shutting down...")
+            break
+        except Exception as e:
+            logger.error(f"Main loop error: {e}")
+            if display:
+                display.show_error("System error", error_code=str(e))
+            time.sleep(5)
 
-def handle_dispensing(machine, payment, display):
-    """Modified to update display with transaction info"""
+
+def handle_dispensing(machine, payment, product_manager, transaction, display):
+    """
+    Handle multi-product dispensing with real-time display updates
     
-    transaction = TransactionTracker()
+    Args:
+        machine: MachineController instance
+        payment: EPortProtocol instance
+        product_manager: ProductManager instance
+        transaction: TransactionTracker instance
+        display: DisplayServer instance (or None)
+    """
     
-    # ... dispensing logic ...
+    current_product_ounces = 0.0
+    current_product = None
+    session_start_time = time.time()
+    last_activity_time = time.time()
     
-    def on_flowmeter_pulse(ounces, price):
-        # Update display with running total
-        items = transaction.get_items()
-        total = transaction.get_total()
-        display.update_transaction_info(items, total)
+    def on_flowmeter_pulse(channel):
+        """Called on each flowmeter pulse - update display in real-time"""
+        nonlocal current_product_ounces, last_activity_time
+        
+        if current_product:
+            # Calculate current quantity
+            pulses = machine.pulse_count
+            current_product_ounces = pulses / current_product.pulses_per_unit
+            price = current_product.calculate_price(current_product_ounces)
+            
+            # Update display with live counter
+            if display:
+                display.update_product(
+                    product_id=current_product.id,
+                    product_name=current_product.name,
+                    quantity=current_product_ounces,
+                    unit=current_product.unit,
+                    price=price,
+                    is_active=True
+                )
+                
+                # Update total
+                total = transaction.get_total() + price
+                display.update_total(total)
+            
+            last_activity_time = time.time()
+    
+    def on_product_switch(product):
+        """Called when customer switches products"""
+        nonlocal current_product_ounces
+        
+        prev_product = machine.get_current_product()
+        if prev_product and current_product_ounces > 0:
+            price = prev_product.calculate_price(current_product_ounces)
+            transaction.add_item(
+                product_id=prev_product.id,
+                product_name=prev_product.name,
+                quantity=current_product_ounces,
+                unit=prev_product.unit,
+                price=price
+            )
+            
+            # Update display to show recorded product
+            if display:
+                display.update_product(
+                    product_id=prev_product.id,
+                    product_name=prev_product.name,
+                    quantity=current_product_ounces,
+                    unit=prev_product.unit,
+                    price=price,
+                    is_active=False
+                )
+        
+        current_product_ounces = 0.0
+        logger.info(f"Switching to: {product.name}")
     
     def on_done_button():
-        # Transaction complete
-        display.show_state("complete")
-        display.show_text(transaction.get_summary(), overlay=True)
+        """Called when customer presses done - show receipt"""
+        nonlocal current_product_ounces
         
-        # ... send transaction result ...
+        # Record final product
+        current_product = machine.get_current_product()
+        if current_product and current_product_ounces > 0:
+            price = current_product.calculate_price(current_product_ounces)
+            transaction.add_item(
+                product_id=current_product.id,
+                product_name=current_product.name,
+                quantity=current_product_ounces,
+                unit=current_product.unit,
+                price=price
+            )
         
-        time.sleep(5)  # Show summary for 5 seconds
+        # STATE 6: Complete - show receipt (artist's receipt screen)
+        if display:
+            display.show_receipt(
+                items=transaction.get_items(),
+                total=transaction.get_total()
+            )
+        
+        # Print text summary for terminal
+        print(transaction.get_summary())
+        
+        # Send to payment processor
+        price_cents = transaction.get_total_cents()
+        description = transaction.get_eport_description_multiple_items()
+        
+        if payment.send_transaction_result(
+            quantity=len(transaction.get_items()),
+            price_cents=price_cents,
+            item_id="1",
+            description=description
+        ):
+            logger.info(f"Transaction complete: {transaction.get_compact_summary()}")
+        
+        # Show receipt for configured timeout
+        time.sleep(RECEIPT_DISPLAY_TIMEOUT)
+    
+    # Setup callbacks and start dispensing
+    machine.start_dispensing(
+        flowmeter_callback=on_flowmeter_pulse,
+        done_callback=on_done_button,
+        product_switch_callback=on_product_switch
+    )
+    
+    # Main control loop with timer updates
+    while not transaction_complete:
+        current_time = time.time()
+        
+        # Update session timer on display
+        if display:
+            session_duration = current_time - session_start_time
+            seconds_remaining = int(DISPENSING_MAX_SESSION_TIME - session_duration)
+            
+            inactivity = current_time - last_activity_time
+            warning = inactivity > INACTIVITY_WARNING_TIME
+            
+            display.update_timer(seconds_remaining, warning=warning)
+        
+        # ... existing timeout and motor control logic ...
+        
+        time.sleep(MOTOR_CONTROL_LOOP_DELAY)
 ```
 
 ---
 
-## Configuration in config/__init__.py
+## Deployment Setup
 
-```python
-# Display configuration
-DISPLAY_CONFIG_PATH = '/Users/travops/soap/ePort/config/display_config.json'
-MEDIA_DIR = '/Users/travops/soap/ePort/media'
-DISPLAY_ENABLED = True  # Set to False to disable display (testing)
-DISPLAY_TIMEOUT = 30  # Return to idle after N seconds of inactivity
+### 1. Install Dependencies
+
+```bash
+cd ~/soap
+pip3 install flask flask-socketio python-socketio
+```
+
+### 2. Install Chromium Browser
+
+```bash
+sudo apt update
+sudo apt install chromium-browser unclutter
+```
+
+### 3. Configure Chromium Kiosk Mode
+
+Create autostart script:
+
+```bash
+sudo nano /etc/xdg/lxsession/LXDE-pi/autostart
+```
+
+Add these lines:
+
+```bash
+# Hide mouse cursor
+@unclutter -idle 0
+
+# Start Chromium in kiosk mode
+@chromium-browser --kiosk --noerrdialogs --disable-infobars --no-first-run --check-for-update-interval=31536000 http://localhost:5000
+```
+
+### 4. Enable X Server (if headless)
+
+```bash
+# Allow X server to start without login
+sudo raspi-config
+# Navigate to: Boot Options → Desktop/CLI → Desktop Autologin
+```
+
+### 5. Test Display
+
+```bash
+# Start the vending machine controller
+python3 -m ePort.main
+
+# In another terminal, check display server
+curl http://localhost:5000
+
+# Open browser manually to test
+chromium-browser --kiosk http://localhost:5000
 ```
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Core Display Manager (Week 1)
-- [ ] Create DisplayManager class
-- [ ] Implement pygame-based renderer
-- [ ] Add config file loading
-- [ ] Support static images
+### Phase 1: Flask Server & Basic HTML (Week 1)
+- [ ] Create DisplayServer class (`src/display_server.py`)
+- [ ] Setup Flask app with WebSocket support
+- [ ] Create HTML templates for all 7 states
+- [ ] Add basic CSS styling
+- [ ] Test state transitions via API
 
-### Phase 2: Media Support (Week 2)
-- [ ] Add GIF animation support
-- [ ] Add MP4 video playback
-- [ ] Implement text overlay
-- [ ] Add transaction info overlay
+**Deliverables:**
+- Working Flask server on port 5000
+- All HTML templates rendering
+- Manual state switching via curl/Postman
 
-### Phase 3: State Integration (Week 3)
-- [ ] Integrate with main.py state machine
-- [ ] Add display updates at each state transition
-- [ ] Test all state flows with media
+---
 
-### Phase 4: Content & Polish (Week 4)
-- [ ] Create/commission media files for each state
-- [ ] Optimize display performance on Pi
-- [ ] Add graceful fallback (no display = text only)
-- [ ] Documentation for content updates
+### Phase 2: Real-Time Updates (Week 2)
+- [ ] Implement WebSocket event handlers
+- [ ] Add JavaScript client (`static/app.js`)
+- [ ] Real-time product counter updates
+- [ ] Timer countdown display
+- [ ] Test with mock data
+
+**Deliverables:**
+- Live counter updates without page refresh
+- Smooth transitions between states
+- Timer displays correctly
+
+---
+
+### Phase 3: Integration with main.py (Week 3)
+- [ ] Add display server initialization in main.py
+- [ ] Update `handle_dispensing()` to call display methods
+- [ ] Connect flowmeter pulses to display updates
+- [ ] Connect product switches to display
+- [ ] Connect done button to receipt display
+
+**Deliverables:**
+- Display updates during actual dispensing
+- Real transactions show on screen
+- All 7 states working in production
+
+---
+
+### Phase 4: Artist's Vision & Polish (Week 4)
+- [ ] Match artist's sketch precisely (container visual, layout)
+- [ ] Create/source graphics (card icon, container, red line, buttons)
+- [ ] Add CSS animations (pulse, blink, fade)
+- [ ] Optimize for Raspberry Pi performance
+- [ ] Add graceful fallback (display server down = terminal only)
+- [ ] Owner documentation for CSS customization
+
+**Deliverables:**
+- Production-ready display matching artist's vision
+- Graphics and branding in place
+- Performance tested on Pi 4
+- Documentation for owner updates
 
 ---
 

@@ -5,5 +5,12 @@
 RPi.GPIO>=0.7.0  # GPIO control for Raspberry Pi
 pyserial>=3.5    # Serial port communication
 
+# Customer display system (required for production)
+# NOTE: Pinned to specific compatible versions tested on Python 3.7 / Raspbian Buster
+flask>=2.0.0,<3.0.0           # Web server for customer display
+python-engineio==4.9.0        # Engine.IO server (required by python-socketio)
+python-socketio==5.11.0       # WebSocket support (compatible with flask-socketio 5.3.6)
+flask-socketio==5.3.6         # Real-time updates via WebSocket
+
 # Optional: Testing framework (not required for production)
 # pytest>=7.0.0  # Uncomment if you want to use pytest for testing
