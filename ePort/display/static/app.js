@@ -131,8 +131,8 @@ socket.on('change_state', (data) => {
     console.log('State change:', data.state);
     showScreen(data.state);
     
-    // Reset data when entering dispensing state
-    if (data.state === 'dispensing') {
+    // Reset product data when starting new transaction (idle) or entering dispensing
+    if (data.state === 'idle' || data.state === 'dispensing') {
         resetProductData();
     }
     
@@ -261,6 +261,7 @@ function resetProductData() {
         const column = document.getElementById(`${product.id}-column`);
         if (column) {
             column.classList.remove('active');
+            column.classList.remove('purchased');  // Also remove purchased state
         }
     });
     
