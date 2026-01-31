@@ -1,0 +1,279 @@
+===============================================================================
+RASPBERRY PI KIOSK MODE SETUP - Customer Display
+===============================================================================
+
+This guide helps you set up the vending machine display in full-screen kiosk
+mode on Raspberry Pi running Raspbian Buster (or similar older versions).
+
+===============================================================================
+ISSUE: Repository Not Found (Raspbian Buster)
+===============================================================================
+
+If you see errors like:
+  "The repository 'http://raspbian.raspberrypi.org/raspbian buster Release' 
+   no longer has a Release file"
+
+This is because Raspbian Buster repositories have been moved to legacy servers.
+
+===============================================================================
+STEP 1: Fix Repository Sources
+===============================================================================
+
+1. Edit the sources list:
+
+   sudo nano /etc/apt/sources.list
+
+2. Replace ALL contents with:
+
+   deb http://legacy.raspbian.org/raspbian/ buster main contrib non-free rpi
+
+3. Save and exit:
+   - Press Ctrl+X
+   - Press Y
+   - Press Enter
+
+4. Update package lists:
+
+   sudo apt update
+
+===============================================================================
+STEP 2: Install Chromium Browser and Dependencies
+===============================================================================
+
+1. Install required packages:
+
+   sudo apt install -y chromium-browser unclutter
+
+2. Verify Chromium installed correctly:
+
+   chromium-browser --version
+
+   Expected output: "Chromium 84.0.4147.141" (or similar version)
+
+===============================================================================
+ALTERNATIVE: If apt update still fails
+===============================================================================
+
+Try installing without updating:
+
+   sudo apt install -y --fix-missing chromium-browser unclutter
+
+OR force install from available repos:
+
+   sudo apt install -y chromium-browser unclutter --allow-releaseinfo-change
+
+===============================================================================
+STEP 3: Configure Kiosk Mode Autostart
+===============================================================================
+
+1. Create autostart directory (if it doesn't exist):
+
+   mkdir -p ~/.config/lxsession/LXDE-pi/
+
+2. Edit autostart file:
+
+   nano ~/.config/lxsession/LXDE-pi/autostart
+
+3. Add these lines to the file:
+
+   @xset s off
+   @xset -dpms
+   @xset s noblank
+   @unclutter -idle 0
+   @chromium-browser --kiosk --noerrdialogs --disable-infobars --no-first-run --check-for-update-interval=31536000 http://localhost:5000
+
+4. Save and exit (Ctrl+X, Y, Enter)
+
+EXPLANATION OF AUTOSTART COMMANDS:
+- @xset s off             : Disable screensaver
+- @xset -dpms             : Disable power management
+- @xset s noblank         : Prevent screen blanking
+- @unclutter -idle 0      : Hide mouse cursor immediately
+- @chromium-browser       : Launch browser in kiosk mode pointing to display
+
+===============================================================================
+STEP 4: Enable Desktop Auto-Login (Required for Kiosk Mode)
+===============================================================================
+
+1. Run Raspberry Pi configuration tool:
+
+   sudo raspi-config
+
+2. Navigate to:
+   - "1 System Options" (or "Boot Options" on older versions)
+   - "S5 Boot / Auto Login"
+   - "B4 Desktop Autologin" (Desktop GUI, automatically logged in as 'pi' user)
+
+3. Select and confirm
+
+4. Exit raspi-config (Tab to Finish, Enter)
+
+===============================================================================
+STEP 5: Test Display Manually (Before Reboot)
+===============================================================================
+
+1. Navigate to project directory:
+
+   cd ~/soap-feature-customer-display-phase1
+
+2. Start the vending machine controller:
+
+   python3 -m ePort.main
+
+3. The display server should start on port 5000
+
+4. Open Chromium in kiosk mode manually to test:
+
+   chromium-browser --kiosk http://localhost:5000
+
+5. You should see the "REFILL YOUR SOAP HERE" idle screen
+
+6. Press Alt+F4 to exit kiosk mode for testing
+
+===============================================================================
+STEP 6: Reboot and Verify Autostart
+===============================================================================
+
+1. Reboot the Raspberry Pi:
+
+   sudo reboot
+
+2. After reboot, the system should:
+   - Auto-login to desktop
+   - Hide the mouse cursor
+   - Launch Chromium in full-screen kiosk mode
+   - Display the vending machine interface at http://localhost:5000
+
+3. The vending machine controller must be running (via systemd service or manually)
+
+===============================================================================
+SYSTEMD SERVICE SETUP (Optional - For Auto-Starting Controller)
+===============================================================================
+
+To automatically start the vending machine controller on boot:
+
+1. Copy the service file:
+
+   sudo cp ~/soap-feature-customer-display-phase1/ePort/vending-machine.service /etc/systemd/system/
+
+2. Edit the service file to match your paths:
+
+   sudo nano /etc/systemd/system/vending-machine.service
+
+3. Enable and start the service:
+
+   sudo systemctl daemon-reload
+   sudo systemctl enable vending-machine.service
+   sudo systemctl start vending-machine.service
+
+4. Check service status:
+
+   sudo systemctl status vending-machine.service
+
+5. View logs:
+
+   sudo journalctl -u vending-machine.service -f
+
+===============================================================================
+TROUBLESHOOTING
+===============================================================================
+
+ISSUE: Black screen after reboot
+SOLUTION: Check if vending machine controller is running
+  - SSH into the Pi
+  - Run: python3 -m ePort.main
+  - Or check systemd service: sudo systemctl status vending-machine
+
+ISSUE: Chromium shows "Can't reach this page"
+SOLUTION: Display server isn't running
+  - Check DISPLAY_ENABLED = True in ePort/config/__init__.py
+  - Check Flask/SocketIO installed: pip3 list | grep -i flask
+  - Manually start: python3 -m ePort.main
+
+ISSUE: Mouse cursor visible
+SOLUTION: 
+  - Check unclutter is installed: which unclutter
+  - Check autostart file includes: @unclutter -idle 0
+
+ISSUE: Screen blanks after inactivity
+SOLUTION: Add to autostart file:
+  - @xset s off
+  - @xset -dpms
+  - @xset s noblank
+
+ISSUE: Chromium doesn't start in kiosk mode
+SOLUTION: Check autostart file path
+  - Should be: ~/.config/lxsession/LXDE-pi/autostart
+  - NOT: /etc/xdg/lxsession/LXDE-pi/autostart (system-wide)
+  - User-specific autostart takes precedence
+
+===============================================================================
+TESTING WITHOUT HARDWARE (Development Mode)
+===============================================================================
+
+If you want to test the display on a different computer:
+
+1. Find Raspberry Pi IP address:
+
+   hostname -I
+
+2. From another computer on the same network, open browser to:
+
+   http://<raspberry-pi-ip>:5000
+
+3. You can also run the display test with mock data:
+
+   cd ~/soap-feature-customer-display-phase1
+   python3 -m ePort.tests.test_display
+
+4. Navigate through states using arrow keys in terminal
+
+===============================================================================
+DISPLAY CONFIGURATION
+===============================================================================
+
+Key configuration options in ePort/config/__init__.py:
+
+  DISPLAY_ENABLED = True              # Enable/disable display server
+  DISPLAY_HOST = 'localhost'          # Display server host
+  DISPLAY_PORT = 5000                 # Display server port
+  RECEIPT_DISPLAY_TIMEOUT = 10        # Seconds to show receipt
+  WAITING_SCREEN_TIMEOUT = 2          # Seconds before "Press Done" screen
+
+To customize display styling:
+  - Edit: ePort/display/static/styles.css
+  - Changes apply on browser refresh (Ctrl+Shift+R)
+
+===============================================================================
+SCREEN RESOLUTION RECOMMENDATIONS
+===============================================================================
+
+Recommended display resolution: 1920x1080 (Full HD)
+Minimum resolution: 1280x720 (HD)
+
+To set custom resolution (if needed):
+1. Edit boot config:
+   sudo nano /boot/config.txt
+
+2. Add/uncomment these lines:
+   hdmi_group=2
+   hdmi_mode=82        # 1920x1080 @ 60Hz
+   hdmi_drive=2
+
+3. Save and reboot
+
+Common HDMI modes:
+- hdmi_mode=4   : 720p @ 60Hz
+- hdmi_mode=16  : 1080p @ 60Hz
+- hdmi_mode=82  : 1920x1080 @ 60Hz
+
+===============================================================================
+SUPPORT
+===============================================================================
+
+For issues or questions:
+- Check documentation: ePort/documentation/
+- Review logs: sudo journalctl -u vending-machine -f
+- GitHub Issues: https://github.com/Travbz/soap/issues
+
+===============================================================================
