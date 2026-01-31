@@ -569,7 +569,7 @@ def main():
 
 
 def handle_dispensing(machine: MachineController, payment: EPortProtocol, 
-                     product_manager: ProductManager, display: Optional[DisplayServer] = None):
+                     product_manager: ProductManager, display: Optional['DisplayServer'] = None):
     """
     Handle the dispensing phase after authorization is approved (Multi-Product)
     
