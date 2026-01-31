@@ -38,7 +38,18 @@ echo ""
 # Step 1: Install Python Dependencies
 # ============================================
 echo "Step 1/6: Installing Python dependencies..."
-pip3 install --user RPi.GPIO pyserial flask flask-socketio python-socketio
+
+# Use requirements.txt for consistent versioning
+if [ -f "$PROJECT_ROOT/requirements.txt" ]; then
+    echo "Installing from requirements.txt..."
+    pip3 install --user -r "$PROJECT_ROOT/requirements.txt"
+else
+    # Fallback: install with pinned versions
+    echo "requirements.txt not found, installing with pinned versions..."
+    pip3 install --user RPi.GPIO>=0.7.0 pyserial>=3.5
+    pip3 install --user 'flask>=2.0.0,<3.0.0' python-engineio==4.12.3 python-socketio==5.12.0 flask-socketio==5.5.1
+fi
+
 echo "✓ Python dependencies installed"
 echo ""
 
