@@ -42,6 +42,7 @@ from .config import (
     DISPENSING_INACTIVITY_TIMEOUT,
     DISPENSING_MAX_SESSION_TIME,
     INACTIVITY_WARNING_TIME,
+    WAITING_SCREEN_TIMEOUT,
     DISPLAY_ENABLED,
     DISPLAY_HOST,
     DISPLAY_PORT,
@@ -604,6 +605,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
     # Timeout tracking
     session_start_time = time.time()
     last_activity_time = time.time()
+    last_button_press_time = time.time()
     warning_displayed = False
     
     # Flag to signal that transaction is complete or cancelled
@@ -652,7 +654,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         Args:
             product: New product being selected
         """
-        nonlocal current_product_ounces, last_product_switch_time
+        nonlocal current_product_ounces, last_product_switch_time, last_button_press_time
         
         try:
             # Record previous product if any was dispensed
@@ -684,6 +686,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             print(f"\n→ Now dispensing: {product.name}")
             current_product_ounces = 0.0
             last_product_switch_time = time.time()
+            last_button_press_time = time.time()
             
         except Exception as e:
             logger.error(f"Error in product switch callback: {e}")
@@ -856,12 +859,23 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     on_done_button()
                     break
                 
+                # Show waiting screen after WAITING_SCREEN_TIMEOUT seconds of no button press
+                time_since_last_button = current_time - last_button_press_time
+                if display:
+                    if time_since_last_button >= WAITING_SCREEN_TIMEOUT:
+                        if display.current_state != 'waiting':
+                            display.change_state('waiting')
+                    else:
+                        if display.current_state != 'dispensing':
+                            display.change_state('dispensing')
+                
                 # Check which product button is pressed
                 pressed_product = machine.get_pressed_product_button()
                 
                 if pressed_product:
-                    # Product button is pressed - reset inactivity timer
+                    # Product button is pressed - reset inactivity timer and button press time
                     last_activity_time = current_time
+                    last_button_press_time = current_time
                     warning_displayed = False  # Reset warning flag
                     
                     current_product = machine.get_current_product()
@@ -888,9 +902,10 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                         time.sleep(MOTOR_OFF_DEBOUNCE_DELAY)
                         machine.control_motor(False)
                 
-                # Check if done button was pressed (reset activity timer)
+                # Check if done button was pressed (reset activity timer and button press time)
                 if machine.is_done_button_pressed():
                     last_activity_time = current_time
+                    last_button_press_time = current_time
                 
                 motor_error_count = 0
                 time.sleep(MOTOR_CONTROL_LOOP_DELAY)

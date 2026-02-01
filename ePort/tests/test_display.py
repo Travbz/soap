@@ -108,9 +108,13 @@ def run_demo():
         display.update_total(1.26 + 0.90 + price)
         time.sleep(0.5)
     
-    time.sleep(2)
+    time.sleep(1)
     
-    print("5. Complete - showing receipt")
+    print("5. Waiting - press done button")
+    display.change_state('waiting')
+    time.sleep(3)
+    
+    print("6. Complete - showing receipt")
     display.show_receipt(
         items=[
             {'product_name': 'Hand Soap', 'quantity': 8.4, 'unit': 'oz', 'price': 1.26},
@@ -121,11 +125,11 @@ def run_demo():
     )
     time.sleep(5)
     
-    print("6. Declined card")
+    print("7. Declined card")
     display.change_state('declined')
     time.sleep(3)
     
-    print("7. Error state")
+    print("8. Error state")
     display.show_error("Test error message", error_code="TEST-001")
     time.sleep(3)
     

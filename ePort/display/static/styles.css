@@ -472,9 +472,9 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
     flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
-    padding: 60px 40px 180px 40px;
+    padding: 40px 40px 320px 40px;
     position: relative;
 }
 
@@ -482,15 +482,16 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
     font-size: 64px;
     font-weight: bold;
     color: #6B7C8C;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
+    margin-top: 20px;
 }
 
 .press-done-main {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 60px;
-    margin-bottom: 30px;
+    gap: 40px;
+    margin-bottom: 20px;
 }
 
 .press-done-text {
@@ -507,18 +508,25 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
     line-height: 1;
 }
 
+.arrow-right-large {
+    font-size: 280px;
+    color: #FF5744;
+    line-height: 1;
+    margin-left: 40px;
+}
+
 .press-done-subtext {
     font-size: 56px;
     font-weight: bold;
     color: #6B7C8C;
-    margin-bottom: 40px;
+    margin-bottom: 30px;
 }
 
 .press-done-or {
     font-size: 40px;
     font-weight: bold;
     color: #5B8DB8;
-    margin-bottom: 100px;
+    margin-bottom: 40px;
 }
 
 /* STATE 5: Complete/Receipt */
