@@ -670,16 +670,19 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 )
                 logger.info(f"Recorded: {prev_product.name} {current_product_ounces:.2f} {prev_product.unit} - ${price:.2f}")
                 
-                # Update display to show recorded product (no longer active)
+                # Update display to show accumulated totals for this product
                 if display:
-                    display.update_product(
-                        product_id=prev_product.id,
-                        product_name=prev_product.name,
-                        quantity=current_product_ounces,
-                        unit=prev_product.unit,
-                        price=price,
-                        is_active=False
-                    )
+                    product_totals = transaction.get_product_totals()
+                    if prev_product.id in product_totals:
+                        totals = product_totals[prev_product.id]
+                        display.update_product(
+                            product_id=prev_product.id,
+                            product_name=totals['product_name'],
+                            quantity=totals['quantity'],
+                            unit=totals['unit'],
+                            price=totals['price'],
+                            is_active=False
+                        )
             
             # Switch to new product
             logger.info(f"Switching to: {product.name}")
@@ -860,8 +863,10 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     break
                 
                 # Show waiting screen after WAITING_SCREEN_TIMEOUT seconds of no button press
+                # Only show if something has been dispensed or is currently being dispensed
                 time_since_last_button = current_time - last_button_press_time
-                if display:
+                has_activity = not transaction.is_empty() or current_product_ounces > 0
+                if display and has_activity:
                     if time_since_last_button >= WAITING_SCREEN_TIMEOUT:
                         if display.current_state != 'waiting':
                             display.change_state('waiting')
@@ -897,10 +902,23 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     # Turn on motor for current product
                     machine.control_motor(True)
                 else:
-                    # No button pressed - turn off motor
-                    if machine.get_current_product():
+                    # No button pressed - turn off motor and clear active highlighting
+                    current_product = machine.get_current_product()
+                    if current_product:
                         time.sleep(MOTOR_OFF_DEBOUNCE_DELAY)
                         machine.control_motor(False)
+                        
+                        # Clear active state on display when button released
+                        # Show current dispensing amount (not accumulated yet)
+                        if display and current_product_ounces > 0:
+                            display.update_product(
+                                product_id=current_product.id,
+                                product_name=current_product.name,
+                                quantity=current_product_ounces,
+                                unit=current_product.unit,
+                                price=current_product.calculate_price(current_product_ounces),
+                                is_active=False
+                            )
                 
                 # Check if done button was pressed (reset activity timer and button press time)
                 if machine.is_done_button_pressed():

@@ -79,6 +79,36 @@ class TransactionTracker:
         """Check if transaction has no items"""
         return len(self.items) == 0
     
+    def get_product_totals(self) -> Dict[str, Dict]:
+        """
+        Get accumulated totals for each product in transaction
+        
+        Returns:
+            Dictionary mapping product_id to {quantity, unit, price, name}
+        """
+        totals = {}
+        for item in self.items:
+            product_id = item['product_id']
+            if product_id in totals:
+                # Accumulate quantity and price for this product
+                totals[product_id]['quantity'] += item['quantity']
+                totals[product_id]['price'] += item['price']
+            else:
+                # First time seeing this product
+                totals[product_id] = {
+                    'product_name': item['product_name'],
+                    'quantity': item['quantity'],
+                    'unit': item['unit'],
+                    'price': item['price']
+                }
+        
+        # Round accumulated values
+        for product_id in totals:
+            totals[product_id]['quantity'] = round(totals[product_id]['quantity'], 2)
+            totals[product_id]['price'] = round(totals[product_id]['price'], 2)
+        
+        return totals
+    
     def get_summary(self) -> str:
         """
         Generate human-readable transaction summary
