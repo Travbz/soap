@@ -616,8 +616,8 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         Callback for flowmeter pulses - tracks current product dispensing
         
         Args:
-            ounces: Ounces dispensed for current product
-            price: Price for current product
+            ounces: Ounces dispensed for current product segment
+            price: Price for current product segment
         """
         nonlocal current_product_ounces, last_activity_time
         try:
@@ -626,14 +626,23 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             if product:
                 logger.debug(f"{product.name}: {ounces:.3f} {product.unit} - ${price:.2f}")
                 
-                # Update display with real-time counter
+                # Calculate accumulated total for this product
+                product_totals = transaction.get_product_totals()
+                accumulated_qty = product_totals.get(product.id, {}).get('quantity', 0.0)
+                accumulated_price = product_totals.get(product.id, {}).get('price', 0.0)
+                
+                # Display shows: previous accumulated + current segment
+                display_qty = accumulated_qty + ounces
+                display_price = accumulated_price + price
+                
+                # Update display with accumulated counter
                 if display:
                     display.update_product(
                         product_id=product.id,
                         product_name=product.name,
-                        quantity=ounces,
+                        quantity=display_qty,
                         unit=product.unit,
-                        price=price,
+                        price=display_price,
                         is_active=True
                     )
                     
@@ -909,7 +918,6 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                         machine.control_motor(False)
                         
                         # Clear active state on display when button released
-                        # Show current dispensing amount (not accumulated yet)
                         if display and current_product_ounces > 0:
                             display.update_product(
                                 product_id=current_product.id,
