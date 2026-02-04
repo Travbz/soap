@@ -131,8 +131,9 @@ socket.on('change_state', (data) => {
     console.log('State change:', data.state);
     showScreen(data.state);
     
-    // Reset product data when starting new transaction (idle) or entering dispensing
-    if (data.state === 'idle' || data.state === 'dispensing') {
+    // Reset product data only when starting new transaction (idle)
+    // Do NOT reset when entering dispensing - we want to keep accumulated values
+    if (data.state === 'idle') {
         resetProductData();
     }
     
