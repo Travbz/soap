@@ -911,22 +911,15 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     # Turn on motor for current product
                     machine.control_motor(True)
                 else:
-                    # No button pressed - turn off motor and clear active highlighting
+                    # No button pressed - turn off motor
                     current_product = machine.get_current_product()
                     if current_product:
                         time.sleep(MOTOR_OFF_DEBOUNCE_DELAY)
                         machine.control_motor(False)
                         
-                        # Clear active state on display when button released
-                        if display and current_product_ounces > 0:
-                            display.update_product(
-                                product_id=current_product.id,
-                                product_name=current_product.name,
-                                quantity=current_product_ounces,
-                                unit=current_product.unit,
-                                price=current_product.calculate_price(current_product_ounces),
-                                is_active=False
-                            )
+                        # Don't update display here - causes flickering
+                        # The last flowmeter pulse has the correct accumulated value
+                        # Active state will be cleared when switching products or pressing done
                 
                 # Check if done button was pressed (reset activity timer and button press time)
                 if machine.is_done_button_pressed():
