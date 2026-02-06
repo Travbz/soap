@@ -608,6 +608,9 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
     last_button_press_time = time.time()
     warning_displayed = False
     
+    # Track if we need to clear active state on button release
+    button_was_pressed = False
+    
     # Flag to signal that transaction is complete or cancelled
     transaction_complete = False
     
@@ -742,13 +745,6 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             # Get total price
             total_price = transaction.get_total()
             
-            # STATE 5: Complete - Show receipt
-            if display:
-                display.show_receipt(
-                    items=transaction.get_items(),
-                    total=total_price
-                )
-            
             # Display itemized transaction to customer (terminal)
             print("\n" + "=" * 40)
             print(transaction.get_summary())
@@ -785,8 +781,13 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             except Exception as e:
                 logger.warning(f"Could not retrieve transaction ID: {e}")
             
-            # Show receipt for configured time
+            # STATE 5: Complete - Show receipt AFTER payment processing
             if display:
+                display.show_receipt(
+                    items=transaction.get_items(),
+                    total=total_price
+                )
+                # Show receipt for configured time
                 time.sleep(RECEIPT_DISPLAY_TIMEOUT)
             
             # Reset machine
@@ -891,6 +892,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     last_activity_time = current_time
                     last_button_press_time = current_time
                     warning_displayed = False  # Reset warning flag
+                    button_was_pressed = True
                     
                     current_product = machine.get_current_product()
                     
@@ -911,15 +913,29 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     # Turn on motor for current product
                     machine.control_motor(True)
                 else:
-                    # No button pressed - turn off motor
+                    # No button pressed - turn off motor and clear active state
                     current_product = machine.get_current_product()
-                    if current_product:
+                    if current_product and button_was_pressed:
                         time.sleep(MOTOR_OFF_DEBOUNCE_DELAY)
                         machine.control_motor(False)
                         
-                        # Don't update display here - causes flickering
-                        # The last flowmeter pulse has the correct accumulated value
-                        # Active state will be cleared when switching products or pressing done
+                        # Clear active state with accumulated totals (prevents flickering)
+                        if display and current_product_ounces > 0:
+                            product_totals = transaction.get_product_totals()
+                            accumulated_qty = product_totals.get(current_product.id, {}).get('quantity', 0.0)
+                            accumulated_price = product_totals.get(current_product.id, {}).get('price', 0.0)
+                            
+                            # Show accumulated + current segment, but not active
+                            display.update_product(
+                                product_id=current_product.id,
+                                product_name=current_product.name,
+                                quantity=accumulated_qty + current_product_ounces,
+                                unit=current_product.unit,
+                                price=accumulated_price + current_product.calculate_price(current_product_ounces),
+                                is_active=False
+                            )
+                        
+                        button_was_pressed = False  # Reset flag
                 
                 # Check if done button was pressed (reset activity timer and button press time)
                 if machine.is_done_button_pressed():
