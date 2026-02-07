@@ -629,27 +629,18 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             if product:
                 logger.debug(f"{product.name}: {ounces:.3f} {product.unit} - ${price:.2f}")
                 
-                # Calculate accumulated total for this product
-                product_totals = transaction.get_product_totals()
-                accumulated_qty = product_totals.get(product.id, {}).get('quantity', 0.0)
-                accumulated_price = product_totals.get(product.id, {}).get('price', 0.0)
-                
-                # Display shows: previous accumulated + current segment
-                display_qty = accumulated_qty + ounces
-                display_price = accumulated_price + price
-                
-                # Update display with accumulated counter
+                # Update display with current segment only (real-time counter)
                 if display:
                     display.update_product(
                         product_id=product.id,
                         product_name=product.name,
-                        quantity=display_qty,
+                        quantity=ounces,
                         unit=product.unit,
-                        price=display_price,
+                        price=price,
                         is_active=True
                     )
                     
-                    # Update total
+                    # Update total (transaction total + current segment)
                     total = transaction.get_total() + price
                     display.update_total(total)
             
@@ -682,19 +673,16 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 )
                 logger.info(f"Recorded: {prev_product.name} {current_product_ounces:.2f} {prev_product.unit} - ${price:.2f}")
                 
-                # Update display to show accumulated totals for this product
+                # Update display to show the segment that was just recorded (not active)
                 if display:
-                    product_totals = transaction.get_product_totals()
-                    if prev_product.id in product_totals:
-                        totals = product_totals[prev_product.id]
-                        display.update_product(
-                            product_id=prev_product.id,
-                            product_name=totals['product_name'],
-                            quantity=totals['quantity'],
-                            unit=totals['unit'],
-                            price=totals['price'],
-                            is_active=False
-                        )
+                    display.update_product(
+                        product_id=prev_product.id,
+                        product_name=prev_product.name,
+                        quantity=current_product_ounces,
+                        unit=prev_product.unit,
+                        price=price,
+                        is_active=False
+                    )
             
             # Switch to new product
             logger.info(f"Switching to: {product.name}")
@@ -919,23 +907,18 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                         time.sleep(MOTOR_OFF_DEBOUNCE_DELAY)
                         machine.control_motor(False)
                         
-                        # Clear active state with accumulated totals (prevents flickering)
+                        # Clear active state (turn from GREEN to BLUE)
                         if display and current_product_ounces > 0:
-                            product_totals = transaction.get_product_totals()
-                            accumulated_qty = product_totals.get(current_product.id, {}).get('quantity', 0.0)
-                            accumulated_price = product_totals.get(current_product.id, {}).get('price', 0.0)
-                            
-                            # Show accumulated + current segment, but not active
                             display.update_product(
                                 product_id=current_product.id,
                                 product_name=current_product.name,
-                                quantity=accumulated_qty + current_product_ounces,
+                                quantity=current_product_ounces,
                                 unit=current_product.unit,
-                                price=accumulated_price + current_product.calculate_price(current_product_ounces),
+                                price=current_product.calculate_price(current_product_ounces),
                                 is_active=False
                             )
                         
-                        button_was_pressed = False  # Reset flag
+                        button_was_pressed = False
                 
                 # Check if done button was pressed (reset activity timer and button press time)
                 if machine.is_done_button_pressed():
