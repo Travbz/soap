@@ -789,6 +789,8 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 )
                 # Show receipt for configured time
                 time.sleep(RECEIPT_DISPLAY_TIMEOUT)
+                # Return to idle state after receipt timeout
+                display.change_state('idle')
             
             # Reset machine
             machine.reset()
