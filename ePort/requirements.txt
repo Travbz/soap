@@ -11,6 +11,8 @@ flask>=2.0.0,<3.0.0           # Web server for customer display
 python-engineio==4.9.0        # Engine.IO server (required by python-socketio)
 python-socketio==5.11.0       # WebSocket support (compatible with flask-socketio 5.3.6)
 flask-socketio==5.3.6         # Real-time updates via WebSocket
+eventlet>=0.30.0              # Async networking for WebSocket support (required by flask-socketio)
+simple-websocket>=0.5.0       # WebSocket implementation
 
 # Optional: Testing framework (not required for production)
 # pytest>=7.0.0  # Uncomment if you want to use pytest for testing
