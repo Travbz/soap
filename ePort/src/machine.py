@@ -126,6 +126,12 @@ class MachineController:
         # Switch to new product
         self.current_product = product
         
+        # Reset flowmeter tracking for new product
+        # Each product starts fresh at 0 pulses/ounces/price
+        self.pulse_count = 0
+        self.product_ounces = 0.0
+        self.total_price = 0.0
+        
         return True
     
     def get_current_product(self) -> Optional['Product']:
