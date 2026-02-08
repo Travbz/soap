@@ -708,31 +708,17 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             last_product_switch_time = time.time()
             last_button_press_time = time.time()
             
-            # Update display for new product - show 0.0 to start fresh
+            # Update display for new product - always show 0.0 to start fresh
+            # Note: Accumulated totals only shown on receipt, not during dispensing
             if display:
-                # Check if this product was previously dispensed in this transaction
-                product_totals = transaction.get_product_totals()
-                if product.id in product_totals:
-                    # Product was dispensed before - show accumulated total
-                    totals = product_totals[product.id]
-                    display.update_product(
-                        product_id=product.id,
-                        product_name=totals['product_name'],
-                        quantity=totals['quantity'],
-                        unit=totals['unit'],
-                        price=totals['price'],
-                        is_active=True
-                    )
-                else:
-                    # First time dispensing this product - show 0.0
-                    display.update_product(
-                        product_id=product.id,
-                        product_name=product.name,
-                        quantity=0.0,
-                        unit=product.unit,
-                        price=0.0,
-                        is_active=True
-                    )
+                display.update_product(
+                    product_id=product.id,
+                    product_name=product.name,
+                    quantity=0.0,
+                    unit=product.unit,
+                    price=0.0,
+                    is_active=True
+                )
             
         except Exception as e:
             logger.error(f"Error in product switch callback: {e}")
