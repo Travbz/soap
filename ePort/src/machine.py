@@ -54,10 +54,15 @@ class MachineController:
         # Current product being dispensed (set by select_product())
         self.current_product: Optional['Product'] = None
         
-        # State variables - track the current dispensing session
-        self.pulse_count = 0          # Total flowmeter pulses counted
-        self.product_ounces = 0.0     # Calculated ounces dispensed
-        self.total_price = 0.0        # Calculated price in dollars
+        # Track pulse counts per product (so each product accumulates independently)
+        self.product_pulse_counts: Dict[str, int] = {}  # product_id -> pulse_count
+        self.product_ounces_map: Dict[str, float] = {}  # product_id -> ounces
+        self.product_price_map: Dict[str, float] = {}   # product_id -> price
+        
+        # Current values for active product (for convenience)
+        self.pulse_count = 0          # Current product's pulse count
+        self.product_ounces = 0.0     # Current product's ounces
+        self.total_price = 0.0        # Current product's price
         
         # Callback functions - set by start_dispensing(), called when events occur
         self._flowmeter_callback: Optional[Callable] = None  # Called on each pulse
@@ -104,7 +109,8 @@ class MachineController:
         Select a product for dispensing
         
         Switches the active product, updating motor/flowmeter pins and pricing.
-        Should be called when customer presses a different product button.
+        Loads the product's accumulated pulse count so dispensing continues from
+        where it left off (allows dispensing same product multiple times).
         
         Args:
             product: Product object to select
@@ -126,11 +132,10 @@ class MachineController:
         # Switch to new product
         self.current_product = product
         
-        # Reset flowmeter tracking for new product
-        # Each product starts fresh at 0 pulses/ounces/price
-        self.pulse_count = 0
-        self.product_ounces = 0.0
-        self.total_price = 0.0
+        # Load this product's accumulated pulse count (or 0 if first time)
+        self.pulse_count = self.product_pulse_counts.get(product.id, 0)
+        self.product_ounces = self.product_ounces_map.get(product.id, 0.0)
+        self.total_price = self.product_price_map.get(product.id, 0.0)
         
         return True
     
@@ -147,6 +152,7 @@ class MachineController:
         then calculate the price based on ounces dispensed.
         
         Uses the current product's calibration and pricing.
+        Saves values per product so each product can be dispensed multiple times.
         
         Args:
             channel: GPIO pin number (required by RPi.GPIO callback interface, but we don't use it)
@@ -165,6 +171,11 @@ class MachineController:
         # Calculate total price: ounces × price per ounce
         # Round to 2 decimal places for currency (e.g., $0.35)
         self.total_price = round(self.product_ounces * self.current_product.price_per_unit, 2)
+        
+        # Save values for this product (so they persist when switching products)
+        self.product_pulse_counts[self.current_product.id] = self.pulse_count
+        self.product_ounces_map[self.current_product.id] = self.product_ounces
+        self.product_price_map[self.current_product.id] = self.total_price
         
         # If a callback function was provided (from main.py), call it with the updated values
         # This allows the main program to log or display the current dispense info
@@ -193,6 +204,11 @@ class MachineController:
         self.product_ounces = 0.0
         self.total_price = 0.0
         self.current_product = None
+        
+        # Clear per-product tracking (new transaction)
+        self.product_pulse_counts.clear()
+        self.product_ounces_map.clear()
+        self.product_price_map.clear()
         
         # Store the callback functions so we can call them when events happen
         self._flowmeter_callback = flowmeter_callback
@@ -376,6 +392,11 @@ class MachineController:
         self.product_ounces = 0.0
         self.total_price = 0.0
         self.current_product = None
+        
+        # Clear per-product tracking
+        self.product_pulse_counts.clear()
+        self.product_ounces_map.clear()
+        self.product_price_map.clear()
         
         # Clear callback references (no longer needed, transaction is done)
         self._flowmeter_callback = None
