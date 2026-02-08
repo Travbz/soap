@@ -603,6 +603,9 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
     current_product_ounces = 0.0
     last_product_switch_time = 0.0
     
+    # Track if motor is actively running (prevents flickering on button release)
+    motor_is_running = False
+    
     # Timeout tracking
     session_start_time = time.time()
     last_activity_time = time.time()
@@ -623,7 +626,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             ounces: Ounces dispensed for current product segment
             price: Price for current product segment
         """
-        nonlocal current_product_ounces, last_activity_time
+        nonlocal current_product_ounces, last_activity_time, motor_is_running
         try:
             current_product_ounces = ounces
             product = machine.get_current_product()
@@ -640,6 +643,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 display_price = prev_price + price
                 
                 # Update display with accumulated total
+                # Only mark as active if motor is actually running (prevents flicker)
                 if display:
                     display.update_product(
                         product_id=product.id,
@@ -647,7 +651,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                         quantity=display_qty,
                         unit=product.unit,
                         price=display_price,
-                        is_active=True
+                        is_active=motor_is_running
                     )
                     
                     # Update grand total
@@ -926,12 +930,14 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     
                     # Turn on motor for current product
                     machine.control_motor(True)
+                    motor_is_running = True  # Track motor state
                 else:
                     # No button pressed - turn off motor and clear active state
                     current_product = machine.get_current_product()
                     if current_product and button_was_pressed:
                         time.sleep(MOTOR_OFF_DEBOUNCE_DELAY)
                         machine.control_motor(False)
+                        motor_is_running = False  # Track motor state
                         
                         # Clear active state showing accumulated total
                         if display and current_product_ounces > 0:
