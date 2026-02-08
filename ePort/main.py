@@ -974,8 +974,19 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
     if transaction_complete and not transaction.is_empty():
         # STATE 5: Complete - Show receipt AFTER payment processing and loop exit
         if display:
+            # Get product totals (combines multiple dispenses of same product)
+            product_totals = transaction.get_product_totals()
+            receipt_items = [
+                {
+                    'product_name': totals['product_name'],
+                    'quantity': totals['quantity'],
+                    'unit': totals['unit'],
+                    'price': totals['price']
+                }
+                for totals in product_totals.values()
+            ]
             display.show_receipt(
-                items=transaction.get_items(),
+                items=receipt_items,
                 total=transaction.get_total()
             )
             # Show receipt for configured time
