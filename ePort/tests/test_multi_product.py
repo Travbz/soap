@@ -408,6 +408,157 @@ class TestTransactionTracker(unittest.TestCase):
         
         # 0.33 + 0.33 + 0.34 = 1.00
         self.assertEqual(tracker.get_total(), 1.00)
+    
+    def test_get_product_totals_single_product(self):
+        """Test product totals with single product"""
+        tracker = TransactionTracker()
+        tracker.add_item("soap_hand", "Hand Soap", 2.5, "oz", 0.38)
+        
+        totals = tracker.get_product_totals()
+        
+        self.assertEqual(len(totals), 1)
+        self.assertIn("soap_hand", totals)
+        self.assertEqual(totals["soap_hand"]["product_name"], "Hand Soap")
+        self.assertEqual(totals["soap_hand"]["quantity"], 2.5)
+        self.assertEqual(totals["soap_hand"]["unit"], "oz")
+        self.assertEqual(totals["soap_hand"]["price"], 0.38)
+    
+    def test_get_product_totals_multiple_products(self):
+        """Test product totals with different products"""
+        tracker = TransactionTracker()
+        tracker.add_item("soap_hand", "Hand Soap", 2.5, "oz", 0.38)
+        tracker.add_item("soap_dish", "Dish Soap", 3.2, "oz", 0.48)
+        tracker.add_item("detergent", "Laundry Detergent", 5.0, "oz", 0.75)
+        
+        totals = tracker.get_product_totals()
+        
+        self.assertEqual(len(totals), 3)
+        self.assertIn("soap_hand", totals)
+        self.assertIn("soap_dish", totals)
+        self.assertIn("detergent", totals)
+        
+        # Verify each product's totals
+        self.assertEqual(totals["soap_hand"]["quantity"], 2.5)
+        self.assertEqual(totals["soap_hand"]["price"], 0.38)
+        self.assertEqual(totals["soap_dish"]["quantity"], 3.2)
+        self.assertEqual(totals["soap_dish"]["price"], 0.48)
+        self.assertEqual(totals["detergent"]["quantity"], 5.0)
+        self.assertEqual(totals["detergent"]["price"], 0.75)
+    
+    def test_get_product_totals_duplicate_products(self):
+        """Test product totals when same product dispensed multiple times"""
+        tracker = TransactionTracker()
+        
+        # Dispense Dish Soap first time
+        tracker.add_item("soap_dish", "Dish Soap", 5.0, "oz", 0.60)
+        
+        # Dispense Hand Soap
+        tracker.add_item("soap_hand", "Hand Soap", 3.0, "oz", 0.45)
+        
+        # Dispense Dish Soap again (second time)
+        tracker.add_item("soap_dish", "Dish Soap", 7.0, "oz", 0.84)
+        
+        # get_items() should show 3 entries (duplicates)
+        items = tracker.get_items()
+        self.assertEqual(len(items), 3)
+        
+        # get_product_totals() should combine duplicates into 2 products
+        totals = tracker.get_product_totals()
+        self.assertEqual(len(totals), 2)
+        
+        # Dish Soap should have combined totals: 5.0 + 7.0 = 12.0 oz
+        self.assertIn("soap_dish", totals)
+        self.assertEqual(totals["soap_dish"]["product_name"], "Dish Soap")
+        self.assertEqual(totals["soap_dish"]["quantity"], 12.0)
+        self.assertEqual(totals["soap_dish"]["unit"], "oz")
+        self.assertEqual(totals["soap_dish"]["price"], 1.44)  # 0.60 + 0.84
+        
+        # Hand Soap should be unchanged
+        self.assertIn("soap_hand", totals)
+        self.assertEqual(totals["soap_hand"]["quantity"], 3.0)
+        self.assertEqual(totals["soap_hand"]["price"], 0.45)
+        
+        # Grand total should be correct
+        self.assertEqual(tracker.get_total(), 1.89)  # 0.60 + 0.45 + 0.84
+    
+    def test_receipt_format_no_duplicates(self):
+        """Test receipt items format for display (no duplicates)"""
+        tracker = TransactionTracker()
+        tracker.add_item("soap_hand", "Hand Soap", 2.5, "oz", 0.38)
+        tracker.add_item("soap_dish", "Dish Soap", 3.2, "oz", 0.48)
+        
+        # Get product totals and convert to receipt format
+        product_totals = tracker.get_product_totals()
+        receipt_items = [
+            {
+                'product_name': totals['product_name'],
+                'quantity': totals['quantity'],
+                'unit': totals['unit'],
+                'price': totals['price']
+            }
+            for totals in product_totals.values()
+        ]
+        
+        # Should have 2 items (one per product)
+        self.assertEqual(len(receipt_items), 2)
+        
+        # Verify each item has required fields
+        for item in receipt_items:
+            self.assertIn('product_name', item)
+            self.assertIn('quantity', item)
+            self.assertIn('unit', item)
+            self.assertIn('price', item)
+    
+    def test_receipt_format_with_duplicates(self):
+        """Test receipt items format combines duplicate products"""
+        tracker = TransactionTracker()
+        
+        # Dispense same product multiple times
+        tracker.add_item("soap_dish", "Dish Soap", 5.0, "oz", 0.60)
+        tracker.add_item("soap_hand", "Hand Soap", 3.0, "oz", 0.45)
+        tracker.add_item("soap_dish", "Dish Soap", 7.0, "oz", 0.84)
+        tracker.add_item("soap_dish", "Dish Soap", 2.0, "oz", 0.24)
+        
+        # Raw items has 4 entries
+        self.assertEqual(len(tracker.get_items()), 4)
+        
+        # Get product totals and convert to receipt format
+        product_totals = tracker.get_product_totals()
+        receipt_items = [
+            {
+                'product_name': totals['product_name'],
+                'quantity': totals['quantity'],
+                'unit': totals['unit'],
+                'price': totals['price']
+            }
+            for totals in product_totals.values()
+        ]
+        
+        # Receipt should have only 2 items (Dish Soap combined, Hand Soap separate)
+        self.assertEqual(len(receipt_items), 2)
+        
+        # Find Dish Soap in receipt
+        dish_soap_item = next(
+            item for item in receipt_items 
+            if item['product_name'] == 'Dish Soap'
+        )
+        
+        # Dish Soap should have combined totals: 5.0 + 7.0 + 2.0 = 14.0 oz
+        self.assertEqual(dish_soap_item['quantity'], 14.0)
+        self.assertEqual(dish_soap_item['price'], 1.68)  # 0.60 + 0.84 + 0.24
+        
+        # Find Hand Soap in receipt
+        hand_soap_item = next(
+            item for item in receipt_items 
+            if item['product_name'] == 'Hand Soap'
+        )
+        
+        # Hand Soap should be single entry
+        self.assertEqual(hand_soap_item['quantity'], 3.0)
+        self.assertEqual(hand_soap_item['price'], 0.45)
+        
+        # Grand total should match
+        self.assertEqual(tracker.get_total(), 2.13)  # 1.68 + 0.45
 
 
 def run_all_tests():

@@ -66,32 +66,42 @@ echo ""
 # Step 3: Configure Display Autostart
 # ============================================
 echo "Step 3/6: Configuring display autostart..."
-AUTOSTART_FILE="/etc/xdg/lxsession/LXDE-pi/autostart"
-AUTOSTART_BACKUP="/etc/xdg/lxsession/LXDE-pi/autostart.backup.$(date +%Y%m%d-%H%M%S)"
+
+# Create user-specific autostart directory (takes precedence over system-wide)
+USER_AUTOSTART_DIR="$HOME/.config/lxsession/LXDE-pi"
+USER_AUTOSTART_FILE="$USER_AUTOSTART_DIR/autostart"
+
+mkdir -p "$USER_AUTOSTART_DIR"
 
 # Backup existing autostart if it exists
-if [ -f "$AUTOSTART_FILE" ]; then
-    sudo cp "$AUTOSTART_FILE" "$AUTOSTART_BACKUP"
+if [ -f "$USER_AUTOSTART_FILE" ]; then
+    AUTOSTART_BACKUP="$USER_AUTOSTART_FILE.backup.$(date +%Y%m%d-%H%M%S)"
+    cp "$USER_AUTOSTART_FILE" "$AUTOSTART_BACKUP"
     echo "✓ Backed up existing autostart to $AUTOSTART_BACKUP"
 fi
 
-# Remove any existing vending machine display config
-sudo sed -i '/# Customer Display/d' "$AUTOSTART_FILE" 2>/dev/null || true
-sudo sed -i '/@unclutter -idle 0/d' "$AUTOSTART_FILE" 2>/dev/null || true
-sudo sed -i '/@chromium-browser.*localhost:5000/d' "$AUTOSTART_FILE" 2>/dev/null || true
+# Create new autostart file with kiosk configuration
+echo "Creating kiosk mode configuration..."
+cat > "$USER_AUTOSTART_FILE" << 'EOF'
+@lxpanel --profile LXDE-pi
+@pcmanfm --desktop --profile LXDE-pi
 
-# Add display configuration
-echo "Adding display configuration to autostart..."
-sudo tee -a "$AUTOSTART_FILE" > /dev/null << 'EOF'
+# Disable screen blanking and power management
+@xset s off
+@xset -dpms
+@xset s noblank
 
-# Customer Display - Hide cursor
+# Hide mouse cursor immediately
 @unclutter -idle 0
 
-# Customer Display - Chromium kiosk mode
-@chromium-browser --kiosk --noerrdialogs --disable-infobars --no-first-run --check-for-update-interval=31536000 http://localhost:5000
+# Launch Chromium in full-screen kiosk mode (NO browser UI visible)
+@chromium-browser --kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 --disable-features=TranslateUI http://localhost:5000
 EOF
 
-echo "✓ Display autostart configured"
+echo "✓ Kiosk mode autostart configured"
+echo "  - Full-screen mode (no address bar or tabs)"
+echo "  - Mouse cursor hidden"
+echo "  - Screen blanking disabled"
 echo ""
 
 # ============================================
@@ -118,16 +128,36 @@ echo "✓ Vending machine service installed and enabled"
 echo ""
 
 # ============================================
-# Step 5: Configure Desktop Auto-Login
+# Step 5: Configure Desktop Auto-Login (AUTOMATED)
 # ============================================
-echo "Step 5/6: Configuring desktop auto-login..."
-echo ""
-echo "For the display to work, desktop must auto-login on boot."
-echo "After this script completes, run:"
-echo "  sudo raspi-config"
-echo "  → Boot Options → Desktop/CLI → Desktop Autologin"
-echo ""
-read -p "Press Enter to continue..."
+echo "Step 5/6: Configuring desktop auto-login (automated)..."
+
+# Check if LightDM is installed (default display manager on Raspberry Pi OS)
+if [ -f /etc/lightdm/lightdm.conf ]; then
+    echo "Configuring LightDM for auto-login..."
+    
+    # Backup existing config
+    sudo cp /etc/lightdm/lightdm.conf /etc/lightdm/lightdm.conf.backup.$(date +%Y%m%d-%H%M%S)
+    
+    # Configure auto-login
+    sudo sed -i '/^#autologin-user=/c\autologin-user=pi' /etc/lightdm/lightdm.conf
+    sudo sed -i '/^autologin-user=/c\autologin-user=pi' /etc/lightdm/lightdm.conf
+    
+    # If line doesn't exist, add it
+    if ! grep -q "^autologin-user=" /etc/lightdm/lightdm.conf; then
+        sudo sed -i '/^\[Seat:\*\]/a autologin-user=pi' /etc/lightdm/lightdm.conf
+    fi
+    
+    echo "✓ Desktop auto-login configured for user 'pi'"
+else
+    echo "⚠️  LightDM not found - using raspi-config method..."
+    echo "Configuring auto-login via raspi-config..."
+    
+    # Use raspi-config non-interactive mode
+    sudo raspi-config nonint do_boot_behaviour B4
+    
+    echo "✓ Desktop auto-login configured"
+fi
 echo ""
 
 # ============================================
@@ -158,29 +188,50 @@ echo ""
 # Setup Complete
 # ============================================
 echo "=============================================="
-echo "  ✓ Setup Complete!"
+echo "  ✓ SETUP COMPLETE!"
 echo "=============================================="
 echo ""
-echo "IMPORTANT: Next steps to activate the system:"
+echo "✅ All configuration automated:"
+echo "   • Python dependencies installed"
+echo "   • Chromium browser installed"
+echo "   • Kiosk mode configured (full-screen, no browser UI)"
+echo "   • Auto-login configured"
+echo "   • Systemd service installed"
+echo "   • All tests passed"
 echo ""
-echo "1. Configure desktop auto-login:"
-echo "   sudo raspi-config"
-echo "   → Boot Options → Desktop/CLI → Desktop Autologin"
+echo "📋 Next Steps:"
 echo ""
-echo "2. Configure your products:"
-echo "   nano $SCRIPT_DIR/config/products.json"
+echo "1. [OPTIONAL] Configure your products:"
+echo "   nano $PROJECT_ROOT/config/products.json"
 echo ""
-echo "3. Reboot the Raspberry Pi:"
+echo "2. Reboot the Raspberry Pi:"
 echo "   sudo reboot"
 echo ""
-echo "After reboot:"
-echo "- Chromium will auto-launch showing customer display"
-echo "- Vending machine service will start automatically"
-echo "- Machine will be ready for transactions"
+echo "🎉 After Reboot - The System Will:"
+echo "   • Auto-login to desktop"
+echo "   • Launch Chromium in FULL-SCREEN kiosk mode"
+echo "   • Display customer interface (NO address bar/tabs)"
+echo "   • Start vending machine service automatically"
+echo "   • Be ready for transactions!"
 echo ""
-echo "To view logs after reboot:"
+echo "📊 Useful Commands:"
+echo ""
+echo "View live logs:"
 echo "  sudo journalctl -u vending-machine -f"
 echo ""
-echo "To check service status:"
+echo "Check service status:"
 echo "  sudo systemctl status vending-machine"
+echo ""
+echo "Restart service:"
+echo "  sudo systemctl restart vending-machine"
+echo ""
+echo "Stop service:"
+echo "  sudo systemctl stop vending-machine"
+echo ""
+echo "To exit kiosk mode during testing:"
+echo "  Press Alt+F4"
+echo ""
+echo "=============================================="
+echo "  Ready to reboot!"
+echo "=============================================="
 echo ""
