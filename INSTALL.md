@@ -24,15 +24,39 @@ This script will **automatically** configure your Raspberry Pi vending machine w
 
 ### Step 2: Download the Software
 
-In the terminal, type these commands:
-
+#### Option A: HTTPS Clone (Simplest - No SSH Setup)
 ```bash
 cd ~
-git clone https://github.com/YOUR-USERNAME/soap.git
+git clone https://github.com/Travbz/soap.git
 cd soap
 ```
 
-*(Replace `YOUR-USERNAME` with your actual GitHub username)*
+#### Option B: SSH Clone (Recommended for Updates)
+
+**First time only - Set up SSH key:**
+
+1. Generate SSH key:
+   ```bash
+   ssh-keygen -t ed25519 -C "your.email@example.com"
+   ```
+   Press Enter 3 times (accept defaults)
+
+2. Copy and add to GitHub:
+   ```bash
+   cat ~/.ssh/id_ed25519.pub
+   ```
+   - Copy the output
+   - Go to GitHub.com → Settings → SSH and GPG keys
+   - Click "New SSH key" and paste
+
+3. Clone with SSH:
+   ```bash
+   cd ~
+   git clone git@github.com:Travbz/soap.git
+   cd soap
+   ```
+
+**Benefits of SSH:** Easily update code later with `git pull` (see [DEPLOYMENT.md](DEPLOYMENT.md))
 
 ### Step 3: Run the Automatic Setup
 
@@ -72,13 +96,27 @@ The Raspberry Pi will:
 
 ---
 
-## 🎉 You're Done!
+## ✅ You're Done!
 
 Your vending machine is now:
 - ✅ Fully configured
 - ✅ Running in kiosk mode (no browser UI visible to customers)
 - ✅ Starting automatically on boot
 - ✅ Ready for credit card transactions
+
+---
+
+## 🔄 Updating to Latest Code
+
+Once deployed, you can easily update when new features are released:
+
+```bash
+cd ~/soap
+git pull origin main
+sudo systemctl restart vending-machine
+```
+
+**See [DEPLOYMENT.md](DEPLOYMENT.md) for complete update instructions.**
 
 ---
 
