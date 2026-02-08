@@ -491,10 +491,11 @@ def main():
                             time.sleep(5)  # Show declined message
                             continue
                         elif auth_status == b'9':
-                            # STATE 3: Ready - show product selection
+                            # STATE 3: Ready - show product selection immediately
                             if display:
                                 display.change_state('ready')
-                            time.sleep(2)  # Show ready screen briefly
+                            # Brief pause to let customer see ready screen
+                            time.sleep(0.5)
                     else:
                         logger.warning("Failed to get auth status")
                         
@@ -703,6 +704,32 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             last_product_switch_time = time.time()
             last_button_press_time = time.time()
             
+            # Update display for new product - show 0.0 to start fresh
+            if display:
+                # Check if this product was previously dispensed in this transaction
+                product_totals = transaction.get_product_totals()
+                if product.id in product_totals:
+                    # Product was dispensed before - show accumulated total
+                    totals = product_totals[product.id]
+                    display.update_product(
+                        product_id=product.id,
+                        product_name=totals['product_name'],
+                        quantity=totals['quantity'],
+                        unit=totals['unit'],
+                        price=totals['price'],
+                        is_active=True
+                    )
+                else:
+                    # First time dispensing this product - show 0.0
+                    display.update_product(
+                        product_id=product.id,
+                        product_name=product.name,
+                        quantity=0.0,
+                        unit=product.unit,
+                        price=0.0,
+                        is_active=True
+                    )
+            
         except Exception as e:
             logger.error(f"Error in product switch callback: {e}")
     
@@ -781,22 +808,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             except Exception as e:
                 logger.warning(f"Could not retrieve transaction ID: {e}")
             
-            # STATE 5: Complete - Show receipt AFTER payment processing
-            if display:
-                display.show_receipt(
-                    items=transaction.get_items(),
-                    total=total_price
-                )
-                # Show receipt for configured time
-                time.sleep(RECEIPT_DISPLAY_TIMEOUT)
-                # Return to idle state after receipt timeout
-                display.change_state('idle')
-            
-            # Reset machine
-            machine.reset()
-            print("\nThank you! Machine ready for next customer\n")
-            logger.debug("Machine reset - ready for next customer")
-            
+            # Mark transaction as complete - receipt will be shown after loop exits
             transaction_complete = True
             
         except PaymentProtocolError:
@@ -947,6 +959,9 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 if machine.is_done_button_pressed():
                     last_activity_time = current_time
                     last_button_press_time = current_time
+                    # Ensure we're back in dispensing state (not waiting) before completing
+                    if display and display.current_state == 'waiting':
+                        display.change_state('dispensing')
                 
                 motor_error_count = 0
                 time.sleep(MOTOR_CONTROL_LOOP_DELAY)
@@ -970,12 +985,29 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         logger.error(f"Unexpected error in dispensing loop: {e}")
         logger.error(traceback.format_exc())
         raise MachineHardwareError(f"Dispensing loop error: {e}")
-    finally:
-        # Always reset machine state when exiting dispensing mode
-        try:
-            machine.reset()
-        except Exception as e:
-            logger.error(f"Error resetting machine in finally block: {e}")
+    
+    # After loop exits, show receipt if transaction completed successfully
+    if transaction_complete and not transaction.is_empty():
+        # STATE 5: Complete - Show receipt AFTER payment processing and loop exit
+        if display:
+            display.show_receipt(
+                items=transaction.get_items(),
+                total=transaction.get_total()
+            )
+            # Show receipt for configured time
+            time.sleep(RECEIPT_DISPLAY_TIMEOUT)
+            # Return to idle state after receipt timeout
+            display.change_state('idle')
+        
+        # Print terminal receipt
+        print("\nThank you! Machine ready for next customer\n")
+        logger.debug("Machine reset - ready for next customer")
+    
+    # Finally block always runs to clean up hardware
+    try:
+        machine.reset()
+    except Exception as e:
+        logger.error(f"Error resetting machine: {e}")
 
 
 if __name__ == "__main__":

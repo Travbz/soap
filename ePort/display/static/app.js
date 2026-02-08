@@ -164,21 +164,16 @@ socket.on('update_product', (data) => {
         priceElement.textContent = `$${price.toFixed(2)}`;
     }
     
-    // Highlight active product column and mark purchased products
+    // Highlight active product column only
     const column = document.getElementById(`${product_id}-column`);
     if (column) {
         if (is_active) {
             column.classList.add('active');
-            column.classList.remove('purchased');
         } else {
             column.classList.remove('active');
-            // If product has been purchased (qty > 0), mark as purchased
-            if (quantity > 0) {
-                column.classList.add('purchased');
-            } else {
-                column.classList.remove('purchased');
-            }
         }
+        // Always remove purchased class - all non-active products show original gray
+        column.classList.remove('purchased');
     }
 });
 

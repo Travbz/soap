@@ -89,7 +89,7 @@ DONE_BUTTON_HARDWARE_DEBOUNCE_MS = 500  # Hardware debounce time in milliseconds
 
 # Status check and error handling delays
 AUTHORIZATION_STATUS_CHECK_DELAY = 1.0  # Wait time after authorization request before checking status
-POST_RESET_DELAY = 1.0  # Wait time after reset before requesting authorization
+POST_RESET_DELAY = 0.5  # Wait time after reset before requesting authorization (reduced for faster display)
 DECLINED_CARD_RETRY_DELAY = 1.0  # Wait time before checking status again after declined card
 
 # Multi-product configuration
