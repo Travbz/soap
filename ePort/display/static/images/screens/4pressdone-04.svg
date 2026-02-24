@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 554" preserveAspectRatio="none">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #606161;
+        font-size: 58.75px;
+      }
+
+      .cls-1, .cls-2, .cls-3 {
+        font-family: Avenir-Black, Avenir;
+        font-weight: 800;
+      }
+
+      .cls-4 {
+        fill: #ccebf5;
+      }
+
+      .cls-5 {
+        fill: #709fd4;
+      }
+
+      .cls-2 {
+        font-size: 111.37px;
+      }
+
+      .cls-2, .cls-6 {
+        fill: #ef3f32;
+        stroke: #666868;
+        stroke-miterlimit: 10;
+        stroke-width: .5px;
+      }
+
+      .cls-3 {
+        fill: #4e7bbe;
+        font-size: 37.13px;
+      }
+    </style>
+  </defs>
+  <rect class="cls-4" x=".91" y="-1.6" width="1279" height="554"/>
+  <text class="cls-2" transform="translate(52.17 210.5)"><tspan x="0" y="0">PRESS</tspan><tspan x="0" y="101">DONE BUTTON</tspan></text>
+  <text class="cls-1" transform="translate(60.45 111.58)"><tspan x="0" y="0">ALL FULL?</tspan></text>
+  <text class="cls-1" transform="translate(59.83 384.21)"><tspan x="0" y="0">TO END YOUR TRANSACTION</tspan></text>
+  <polygon class="cls-6" points="952.89 385.27 1117.39 462.43 1084.23 503.4 1243.91 517.4 1222.15 385.27 1182.23 423.15 917.03 230.65 952.89 385.27"/>
+  <text class="cls-3" transform="translate(62.59 451.99)"><tspan x="0" y="0">OR PICK A NEW PRODUCT TO KEEP REFILLING</tspan></text>
+  <polygon class="cls-5" points="155.61 482.4 174.25 482.4 174.25 511.96 186.72 511.96 163.23 537.4 144.16 513.82 159.14 509.9 155.61 482.4"/>
+  <polygon class="cls-5" points="527.61 482.4 546.25 482.4 546.25 511.96 558.72 511.96 535.23 537.4 516.16 513.82 531.14 509.9 527.61 482.4"/>
+  <polygon class="cls-5" points="881.61 482.4 900.25 482.4 900.25 511.96 912.72 511.96 889.23 537.4 870.16 513.82 885.14 509.9 881.61 482.4"/>
+</svg>

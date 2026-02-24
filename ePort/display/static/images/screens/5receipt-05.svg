@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 554" preserveAspectRatio="none">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #ccebf5;
+      }
+
+      .cls-2 {
+        fill: #4e7bbe;
+      }
+
+      .cls-3 {
+        fill: #ef3f32;
+        stroke: #666868;
+        stroke-miterlimit: 10;
+        stroke-width: .5px;
+      }
+
+      .cls-4 {
+        font-family: Avenir-Black, Avenir;
+        font-size: 74.97px;
+        font-weight: 800;
+      }
+    </style>
+  </defs>
+  <rect class="cls-1" x=".72" y=".08" width="1279" height="554"/>
+  <text class="cls-4" transform="translate(72.39 196.98)"><tspan class="cls-3"><tspan x="0" y="0">ALL DONE.</tspan></tspan><tspan class="cls-2"><tspan x="0" y="88.52">THANKS FOR</tspan></tspan><tspan class="cls-2"><tspan x="0" y="177.04">REFILLING!</tspan></tspan></text>
+</svg>

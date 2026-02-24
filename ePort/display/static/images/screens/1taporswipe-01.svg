@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 554" preserveAspectRatio="none">
+  <defs>
+    <style>
+      .cls-1 {
+        letter-spacing: -.09em;
+      }
+
+      .cls-2 {
+        letter-spacing: 0em;
+      }
+
+      .cls-3 {
+        fill: #ef3f32;
+      }
+
+      .cls-4, .cls-5 {
+        fill: #ccebf5;
+      }
+
+      .cls-6 {
+        fill: #4e7bbe;
+      }
+
+      .cls-7 {
+        letter-spacing: -.02em;
+      }
+
+      .cls-8 {
+        fill: #323a4c;
+        font-size: 56.82px;
+      }
+
+      .cls-8, .cls-5, .cls-9 {
+        font-family: Avenir-Black, Avenir;
+        font-weight: 800;
+      }
+
+      .cls-5 {
+        font-size: 41px;
+      }
+
+      .cls-9 {
+        font-size: 74.97px;
+      }
+    </style>
+  </defs>
+  <rect class="cls-4" x=".03" y=".24" width="1279" height="554"/>
+  <g>
+    <path class="cls-3" d="M1236.08,518.26l-21.76-132.13-39.92,37.88-265.08-192.42c3.36,15.09,31.54,136.36,35.74,154.54l164.5,77.17-33.16,40.97,159.68,14Z"/>
+    <path class="cls-3" d="M909.21,231.12l-837-12v156l872.5,11.5c-4.44-19.43-31.78-139.2-35.5-155.5Z"/>
+  </g>
+  <text class="cls-9" transform="translate(78.7 290.13)"><tspan class="cls-4"><tspan class="cls-1" x="0" y="0">T</tspan><tspan x="36.13" y="0" xml:space="preserve">AP     SWIPE </tspan></tspan><tspan class="cls-4"><tspan x="0" y="78">YOUR CARD</tspan></tspan><tspan class="cls-6"><tspan x="0" y="172">TO GET S</tspan><tspan class="cls-1" x="341.39" y="172">T</tspan><tspan x="377.52" y="172">A</tspan><tspan class="cls-7" x="433.07" y="172">R</tspan><tspan class="cls-2" x="480.3" y="172">TED</tspan></tspan></text>
+  <text class="cls-5" transform="translate(228.54 278.75)"><tspan x="0" y="0">-OR-</tspan></text>
+  <text class="cls-8" transform="translate(79.55 157.51)"><tspan x="0" y="0">REFILL YOUR SOAP BOTTLES HERE!</tspan></text>
+</svg>

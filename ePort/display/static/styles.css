@@ -7,23 +7,80 @@
 
 body {
     font-family: 'Arial', 'Helvetica', sans-serif;
-    background: #B8D4E6;
+    background: #ccebf5;
     color: #3C4D5C;
     overflow: hidden;
+    height: 100vh;
+    height: 100dvh;
+    width: 100%;
 }
 
 .screen {
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: calc(100vh - 250px);
+    height: calc(100dvh - 250px);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     position: relative;
+    overflow: hidden;
 }
 
 .hidden {
     display: none !important;
 }
+
+/* SVG Info Panel MFE - Client artwork fills the screen above product bar */
+.screen-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: 5;
+}
+
+.screen-svg-img {
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    display: block;
+}
+
+/* Fallback content shown when SVG is missing (onerror hides img, shows this) */
+.screen-fallback {
+    display: none;
+    width: 100%;
+    height: 100%;
+}
+
+/* When SVG is missing, fallback becomes the full screen layout */
+.screen-svg-img[style*="display: none"] ~ .screen-fallback {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+/* Receipt overlay - floats on top of the complete SVG */
+.receipt-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 45%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 40px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.receipt-overlay .receipt-box {
+    pointer-events: auto;
+}
+
 
 /* Product Bar MFE - Persistent component across states */
 .product-bar {
@@ -31,7 +88,7 @@ body {
     display: flex;
     justify-content: space-around;
     padding: 0;
-    min-height: 200px;
+    height: 250px;
     width: 100%;
     position: fixed;
     bottom: 0;
@@ -230,7 +287,7 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    height: calc(100vh - 200px);
+    height: 100%;
     min-height: 400px;
     background: #B8D4E6;
 }
@@ -319,7 +376,7 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
     justify-content: space-between;
     flex: 1;
     position: relative;
-    height: calc(100vh - 200px);
+    height: 100%;
 }
 
 .warning-left {
@@ -431,8 +488,8 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
 }
 
 .ground-platform {
-    position: fixed;
-    bottom: 200px;
+    position: absolute;
+    bottom: 0;
     left: 0;
     right: 0;
     width: 100vw;
@@ -532,11 +589,12 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
 /* STATE 5: Complete/Receipt */
 #complete-screen {
     background: #B8D4E6;
+    position: relative;
 }
 
 .thanks-section {
     display: flex;
-    height: calc(100vh - 240px);
+    height: 100%;
     padding: 40px 40px 60px 40px;
 }
 
@@ -614,11 +672,15 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
     flex-shrink: 0;
 }
 
+#error-screen {
+    position: relative;
+}
+
 /* Error States */
 .error-content {
     background: #E74C3C;
     color: white;
-    height: calc(100vh - 200px);
+    height: 100%;
     min-height: 400px;
 }
 
@@ -640,4 +702,10 @@ h2 {
     font-size: 32px;
     margin-top: 20px;
     opacity: 0.8;
+}
+
+.error-contact {
+    font-size: 28px;
+    margin-top: 40px;
+    opacity: 0.9;
 }

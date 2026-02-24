@@ -11,12 +11,17 @@
     <div id="app">
         <!-- STATE 1: Idle - Swipe Card -->
         <div id="idle-screen" class="screen">
-            <div class="header-text">REFILL YOUR SOAP HERE!</div>
-            <div class="banner-red">
-                <span class="banner-text">TAP <span class="or">-OR-</span> SWIPE</span>
-                <span class="banner-text">YOUR CARD</span>
+            <div class="screen-svg">
+                <img src="{{ url_for('static', filename='images/screens/1taporswipe-01.svg') }}" alt="" class="screen-svg-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='';">
+                <div class="screen-fallback">
+                    <div class="header-text">REFILL YOUR SOAP HERE!</div>
+                    <div class="banner-red">
+                        <span class="banner-text">TAP <span class="or">-OR-</span> SWIPE</span>
+                        <span class="banner-text">YOUR CARD</span>
+                    </div>
+                    <div class="subheader">TO GET STARTED</div>
+                </div>
             </div>
-            <div class="subheader">TO GET STARTED</div>
         </div>
 
         <!-- STATE 2: Authorizing -->
@@ -30,59 +35,82 @@
 
         <!-- STATE 3: Ready - Product Selection -->
         <div id="ready-screen" class="screen hidden">
-            <div class="header-blue">YOU'RE ALL READY TO REFILL!</div>
-            <div class="instructions-box">
-                <h2>PUT THE TUBE INTO YOUR BOTTLE</h2>
-                <p class="instruction-red">PRESS AND HOLD RED PRODUCT BUTTONS BELOW TO REFILL</p>
-                <div id="button-arrows-ready" class="button-arrows"></div>
+            <div class="screen-svg">
+                <img src="{{ url_for('static', filename='images/screens/2readytofill-02.svg') }}" alt="" class="screen-svg-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='';">
+                <div class="screen-fallback">
+                    <div class="header-blue">YOU'RE ALL READY TO REFILL!</div>
+                    <div class="instructions-box">
+                        <h2>PUT THE TUBE INTO YOUR BOTTLE</h2>
+                        <p class="instruction-red">PRESS AND HOLD RED PRODUCT BUTTONS BELOW TO REFILL</p>
+                        <div id="button-arrows-ready" class="button-arrows"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- STATE 4: Dispensing (actively pressing button) -->
         <div id="dispensing-screen" class="screen hidden">
-            <div class="warning-section">
-                <div class="warning-left">
-                    <div class="warning-title">PAY ATTENTION:</div>
-                    <div class="warning-big">STOP<br>EARLY!</div>
-                    <div class="red-line-indicator"></div>
-                </div>
-                <div class="bottle-visual">
-                    <div class="nozzle-container">
-                        <div class="dispenser-nozzle"></div>
-                    </div>
-                    <div class="bottle-container">
-                        <div class="bottle">
-                            <div class="fill-level" id="fill-level"></div>
+            <div class="screen-svg">
+                <img src="{{ url_for('static', filename='images/screens/3stopearly-03.svg') }}" alt="" class="screen-svg-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='';">
+                <div class="screen-fallback">
+                    <div class="warning-section">
+                        <div class="warning-left">
+                            <div class="warning-title">PAY ATTENTION:</div>
+                            <div class="warning-big">STOP<br>EARLY!</div>
+                            <div class="red-line-indicator"></div>
+                        </div>
+                        <div class="bottle-visual">
+                            <div class="nozzle-container">
+                                <div class="dispenser-nozzle"></div>
+                            </div>
+                            <div class="bottle-container">
+                                <div class="bottle">
+                                    <div class="fill-level" id="fill-level"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="ground-platform"></div>
+                        <div class="red-line"></div>
+                        <div class="warning-right">
+                            <div class="warning-title">DON'T<br>OVER<br>FILL!</div>
                         </div>
                     </div>
-                </div>
-                <div class="ground-platform"></div>
-                <div class="red-line"></div>
-                <div class="warning-right">
-                    <div class="warning-title">DON'T<br>OVER<br>FILL!</div>
                 </div>
             </div>
         </div>
 
         <!-- STATE 4b: Waiting (transaction open, not pressing button) -->
         <div id="waiting-screen" class="screen hidden">
-            <div class="press-done-section">
-                <div class="press-done-header">ALL FULL?</div>
-                <div class="press-done-main">
-                    <div class="press-done-text">PRESS<br>DONE BUTTON</div>
+            <div class="screen-svg">
+                <img src="{{ url_for('static', filename='images/screens/4pressdone-04.svg') }}" alt="" class="screen-svg-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='';">
+                <div class="screen-fallback">
+                    <div class="press-done-section">
+                        <div class="press-done-header">ALL FULL?</div>
+                        <div class="press-done-main">
+                            <div class="press-done-text">PRESS<br>DONE BUTTON</div>
+                        </div>
+                        <div class="press-done-subtext">TO END YOUR TRANSACTION</div>
+                        <div class="press-done-or">OR PICK A NEW PRODUCT TO KEEP REFILLING</div>
+                        <div id="button-arrows-waiting" class="button-arrows"></div>
+                    </div>
                 </div>
-                <div class="press-done-subtext">TO END YOUR TRANSACTION</div>
-                <div class="press-done-or">OR PICK A NEW PRODUCT TO KEEP REFILLING</div>
-                <div id="button-arrows-waiting" class="button-arrows"></div>
             </div>
         </div>
 
         <!-- STATE 5: Complete - Receipt -->
         <div id="complete-screen" class="screen hidden">
-            <div class="thanks-section">
-                <div class="thanks-text">THANKS<br>FOR<br>REFILLING!</div>
+            <div class="screen-svg">
+                <img src="{{ url_for('static', filename='images/screens/5receipt-05.svg') }}" alt="" class="screen-svg-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='';">
+                <div class="screen-fallback">
+                    <div class="thanks-section">
+                        <div class="thanks-text">THANKS<br>FOR<br>REFILLING!</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Dynamic receipt overlay - positioned on top of SVG -->
+            <div class="receipt-overlay">
                 <div class="receipt-box">
-                    <div class="receipt-header">YOUR RECIEPT:</div>
+                    <div class="receipt-header">YOUR RECEIPT:</div>
                     <div id="receipt-items" class="receipt-items"></div>
                     <div class="receipt-total-line">
                         YOUR TOTAL------$<span id="receipt-total">0.00</span>
@@ -93,10 +121,15 @@
 
         <!-- STATE 6: Declined -->
         <div id="declined-screen" class="screen hidden">
-            <div class="center-content error-content">
-                <div class="error-icon">❌</div>
-                <h1>CARD DECLINED</h1>
-                <h2>Please try another card</h2>
+            <div class="screen-svg">
+                <img src="{{ url_for('static', filename='images/screens/declined.svg') }}" alt="" class="screen-svg-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='';">
+                <div class="screen-fallback">
+                    <div class="center-content error-content">
+                        <div class="error-icon">❌</div>
+                        <h1>CARD DECLINED</h1>
+                        <h2>Please try another card</h2>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -107,6 +140,7 @@
                 <h1>MACHINE ERROR</h1>
                 <h2 id="error-message">Please contact staff for assistance</h2>
                 <p id="error-code" class="error-code"></p>
+                <p class="error-contact">Please email <strong>soapsgf@gmail.com</strong> if you encounter a machine error</p>
             </div>
         </div>
     </div>
