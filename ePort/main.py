@@ -491,10 +491,11 @@ def main():
                             time.sleep(5)  # Show declined message
                             continue
                         elif auth_status == b'9':
-                            # STATE 3: Ready - show product selection
+                            # STATE 3: Ready - show product selection immediately
                             if display:
                                 display.change_state('ready')
-                            time.sleep(2)  # Show ready screen briefly
+                            # Brief pause to let customer see ready screen
+                            time.sleep(0.5)
                     else:
                         logger.warning("Failed to get auth status")
                         
@@ -602,6 +603,9 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
     current_product_ounces = 0.0
     last_product_switch_time = 0.0
     
+    # Track if motor is actively running (prevents flickering on button release)
+    motor_is_running = False
+    
     # Timeout tracking
     session_start_time = time.time()
     last_activity_time = time.time()
@@ -622,34 +626,27 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             ounces: Ounces dispensed for current product segment
             price: Price for current product segment
         """
-        nonlocal current_product_ounces, last_activity_time
+        nonlocal current_product_ounces, last_activity_time, motor_is_running
         try:
             current_product_ounces = ounces
             product = machine.get_current_product()
             if product:
                 logger.debug(f"{product.name}: {ounces:.3f} {product.unit} - ${price:.2f}")
                 
-                # Calculate accumulated total for this product
-                product_totals = transaction.get_product_totals()
-                accumulated_qty = product_totals.get(product.id, {}).get('quantity', 0.0)
-                accumulated_price = product_totals.get(product.id, {}).get('price', 0.0)
-                
-                # Display shows: previous accumulated + current segment
-                display_qty = accumulated_qty + ounces
-                display_price = accumulated_price + price
-                
-                # Update display with accumulated counter
+                # Update display with current segment only (not accumulated)
+                # Each product starts fresh at 0, accumulated totals only shown on receipt
+                # Only mark as active if motor is actually running (prevents flicker)
                 if display:
                     display.update_product(
                         product_id=product.id,
                         product_name=product.name,
-                        quantity=display_qty,
+                        quantity=ounces,
                         unit=product.unit,
-                        price=display_price,
-                        is_active=True
+                        price=price,
+                        is_active=motor_is_running
                     )
                     
-                    # Update total
+                    # Update grand total (includes all previously recorded products)
                     total = transaction.get_total() + price
                     display.update_total(total)
             
@@ -682,7 +679,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 )
                 logger.info(f"Recorded: {prev_product.name} {current_product_ounces:.2f} {prev_product.unit} - ${price:.2f}")
                 
-                # Update display to show accumulated totals for this product
+                # Update display to show accumulated total for previous product (not active)
                 if display:
                     product_totals = transaction.get_product_totals()
                     if prev_product.id in product_totals:
@@ -702,6 +699,18 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             current_product_ounces = 0.0
             last_product_switch_time = time.time()
             last_button_press_time = time.time()
+            
+            # Update display for new product - always show 0.0 to start fresh
+            # Note: Accumulated totals only shown on receipt, not during dispensing
+            if display:
+                display.update_product(
+                    product_id=product.id,
+                    product_name=product.name,
+                    quantity=0.0,
+                    unit=product.unit,
+                    price=0.0,
+                    is_active=True
+                )
             
         except Exception as e:
             logger.error(f"Error in product switch callback: {e}")
@@ -781,20 +790,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             except Exception as e:
                 logger.warning(f"Could not retrieve transaction ID: {e}")
             
-            # STATE 5: Complete - Show receipt AFTER payment processing
-            if display:
-                display.show_receipt(
-                    items=transaction.get_items(),
-                    total=total_price
-                )
-                # Show receipt for configured time
-                time.sleep(RECEIPT_DISPLAY_TIMEOUT)
-            
-            # Reset machine
-            machine.reset()
-            print("\nThank you! Machine ready for next customer\n")
-            logger.debug("Machine reset - ready for next customer")
-            
+            # Mark transaction as complete - receipt will be shown after loop exits
             transaction_complete = True
             
         except PaymentProtocolError:
@@ -912,35 +908,44 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     
                     # Turn on motor for current product
                     machine.control_motor(True)
+                    motor_is_running = True  # Track motor state
                 else:
                     # No button pressed - turn off motor and clear active state
                     current_product = machine.get_current_product()
                     if current_product and button_was_pressed:
                         time.sleep(MOTOR_OFF_DEBOUNCE_DELAY)
                         machine.control_motor(False)
+                        motor_is_running = False  # Track motor state
                         
-                        # Clear active state with accumulated totals (prevents flickering)
+                        # Clear active state showing accumulated total
                         if display and current_product_ounces > 0:
+                            # Get previously recorded amount
                             product_totals = transaction.get_product_totals()
-                            accumulated_qty = product_totals.get(current_product.id, {}).get('quantity', 0.0)
-                            accumulated_price = product_totals.get(current_product.id, {}).get('price', 0.0)
+                            prev_qty = product_totals.get(current_product.id, {}).get('quantity', 0.0)
+                            prev_price = product_totals.get(current_product.id, {}).get('price', 0.0)
                             
-                            # Show accumulated + current segment, but not active
+                            # Show accumulated: previous + current segment
+                            display_qty = prev_qty + current_product_ounces
+                            display_price = prev_price + current_product.calculate_price(current_product_ounces)
+                            
                             display.update_product(
                                 product_id=current_product.id,
                                 product_name=current_product.name,
-                                quantity=accumulated_qty + current_product_ounces,
+                                quantity=display_qty,
                                 unit=current_product.unit,
-                                price=accumulated_price + current_product.calculate_price(current_product_ounces),
+                                price=display_price,
                                 is_active=False
                             )
                         
-                        button_was_pressed = False  # Reset flag
+                        button_was_pressed = False
                 
                 # Check if done button was pressed (reset activity timer and button press time)
                 if machine.is_done_button_pressed():
                     last_activity_time = current_time
                     last_button_press_time = current_time
+                    # Ensure we're back in dispensing state (not waiting) before completing
+                    if display and display.current_state == 'waiting':
+                        display.change_state('dispensing')
                 
                 motor_error_count = 0
                 time.sleep(MOTOR_CONTROL_LOOP_DELAY)
@@ -964,12 +969,40 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         logger.error(f"Unexpected error in dispensing loop: {e}")
         logger.error(traceback.format_exc())
         raise MachineHardwareError(f"Dispensing loop error: {e}")
-    finally:
-        # Always reset machine state when exiting dispensing mode
-        try:
-            machine.reset()
-        except Exception as e:
-            logger.error(f"Error resetting machine in finally block: {e}")
+    
+    # After loop exits, show receipt if transaction completed successfully
+    if transaction_complete and not transaction.is_empty():
+        # STATE 5: Complete - Show receipt AFTER payment processing and loop exit
+        if display:
+            # Get product totals (combines multiple dispenses of same product)
+            product_totals = transaction.get_product_totals()
+            receipt_items = [
+                {
+                    'product_name': totals['product_name'],
+                    'quantity': totals['quantity'],
+                    'unit': totals['unit'],
+                    'price': totals['price']
+                }
+                for totals in product_totals.values()
+            ]
+            display.show_receipt(
+                items=receipt_items,
+                total=transaction.get_total()
+            )
+            # Show receipt for configured time
+            time.sleep(RECEIPT_DISPLAY_TIMEOUT)
+            # Return to idle state after receipt timeout
+            display.change_state('idle')
+        
+        # Print terminal receipt
+        print("\nThank you! Machine ready for next customer\n")
+        logger.debug("Machine reset - ready for next customer")
+    
+    # Finally block always runs to clean up hardware
+    try:
+        machine.reset()
+    except Exception as e:
+        logger.error(f"Error resetting machine: {e}")
 
 
 if __name__ == "__main__":

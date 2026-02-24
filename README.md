@@ -1,5 +1,9 @@
 # Vending Machine Controller
 
+**🚀 Quick Start:** See **[INSTALL.md](INSTALL.md)** for one-command automated setup (no technical knowledge required!)
+
+---
+
 **Multi-Product Raspberry Pi Vending Machine with Credit Card Payment Processing**
 
 A production-ready vending machine controller that handles credit card payments via ePort serial protocol and manages multiple products with different pricing, motors, and flowmeters.
