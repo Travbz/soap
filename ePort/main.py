@@ -806,9 +806,8 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
     
     # Start dispensing mode - set up callbacks
     try:
-        # STATE 4: Dispensing
-        if display:
-            display.change_state('dispensing')
+        # STATE 3: Ready - customer sees "ready to fill" until first button press
+        # Display stays on 'ready' (set after auth) until a product button is pressed
         
         machine.start_dispensing(
             flowmeter_callback=on_flowmeter_pulse,
@@ -868,15 +867,16 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     on_done_button()
                     break
                 
-                # Show waiting screen after WAITING_SCREEN_TIMEOUT seconds of no button press
-                # Only show if something has been dispensed or is currently being dispensed
+                # Update display state based on button activity
                 time_since_last_button = current_time - last_button_press_time
                 has_activity = not transaction.is_empty() or current_product_ounces > 0
-                if display and has_activity:
-                    if time_since_last_button >= WAITING_SCREEN_TIMEOUT:
+                if display:
+                    if has_activity and time_since_last_button >= WAITING_SCREEN_TIMEOUT:
+                        # Button released after dispensing — show "done" screen
                         if display.current_state != 'waiting':
                             display.change_state('waiting')
-                    else:
+                    elif has_activity and time_since_last_button < WAITING_SCREEN_TIMEOUT:
+                        # Actively holding button — show "stop early" screen
                         if display.current_state != 'dispensing':
                             display.change_state('dispensing')
                 
@@ -939,13 +939,10 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                         
                         button_was_pressed = False
                 
-                # Check if done button was pressed (reset activity timer and button press time)
+                # Check if done button was pressed — only reset activity timer
+                # Do NOT reset last_button_press_time to avoid flashing dispensing screen
                 if machine.is_done_button_pressed():
                     last_activity_time = current_time
-                    last_button_press_time = current_time
-                    # Ensure we're back in dispensing state (not waiting) before completing
-                    if display and display.current_state == 'waiting':
-                        display.change_state('dispensing')
                 
                 motor_error_count = 0
                 time.sleep(MOTOR_CONTROL_LOOP_DELAY)
