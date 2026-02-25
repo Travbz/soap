@@ -47,16 +47,26 @@ from .config import (
     DISPLAY_HOST,
     DISPLAY_PORT,
     RECEIPT_DISPLAY_TIMEOUT,
-    ERROR_DISPLAY_TIMEOUT
+    ERROR_DISPLAY_TIMEOUT,
+    TX_LOG_FILE
 )
 
 # Configure logging
+log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+log_datefmt = '%Y-%m-%d %H:%M:%S'
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format=log_format,
+    datefmt=log_datefmt
 )
 logger = logging.getLogger(__name__)
+
+# File handler - overwrites on every run so we don't fill up the Pi
+_file_handler = logging.FileHandler(TX_LOG_FILE, mode='w')
+_file_handler.setLevel(logging.DEBUG)
+_file_handler.setFormatter(logging.Formatter(log_format, datefmt=log_datefmt))
+logger.addHandler(_file_handler)
 
 
 class VendingMachineError(Exception):
@@ -454,11 +464,12 @@ def main():
                     continue
                 
                 consecutive_errors = 0  # Reset on success
-                logger.debug(f"Status: {status}")
+                display_state = display.current_state if display else 'N/A'
+                logger.info(f"[POLL] status={status} display={display_state}")
                 
                 # Check if ePort is disabled (code 6)
                 if status == b'6':
-                    logger.info("ePort disabled - resetting and requesting authorization")
+                    logger.info("[STATUS-6] ePort disabled - resetting and requesting authorization")
                     
                     # STATE 2: Authorizing
                     if display:
@@ -480,12 +491,11 @@ def main():
                     # Check authorization status
                     time.sleep(AUTHORIZATION_STATUS_CHECK_DELAY)
                     auth_status = safe_status_check(payment)
+                    logger.info(f"[AUTH-CHECK] auth_status={auth_status}")
                     if auth_status:
-                        logger.info(f"Auth status: {auth_status}")
-                        
                         # Check if declined
                         if auth_status.startswith(b'3'):
-                            logger.warning("Authorization declined by bank")
+                            logger.warning("[AUTH-DECLINED] Authorization declined by bank")
                             if display:
                                 display.change_state('declined')
                             time.sleep(5)  # Show declined message
@@ -494,8 +504,7 @@ def main():
                             # STATE 3: Ready - show product selection immediately
                             if display:
                                 display.change_state('ready')
-                            # Go directly into dispensing (ready screen stays until button press)
-                            logger.info("Authorization approved - entering dispensing directly")
+                            logger.info("[AUTH-APPROVED] Entering dispensing directly")
                             try:
                                 handle_dispensing(machine, payment, product_manager, display)
                             except KeyboardInterrupt:
@@ -513,12 +522,14 @@ def main():
                                     logger.error(f"Error resetting machine: {reset_error}")
                                 time.sleep(RETRY_DELAY)
                             continue
+                        else:
+                            logger.info(f"[AUTH-WAITING] Auth not yet resolved, status={auth_status}")
                     else:
-                        logger.warning("Failed to get auth status")
+                        logger.warning("[AUTH-CHECK] Failed to get auth status (None returned)")
                         
                 # Check if authorization declined (code 3)
                 elif status.startswith(b'3'):
-                    logger.warning("Authorization declined by bank")
+                    logger.warning(f"[STATUS-3] Authorization declined by bank (raw={status})")
                     if display:
                         display.change_state('declined')
                     time.sleep(DECLINED_CARD_RETRY_DELAY)
@@ -526,7 +537,7 @@ def main():
                 # Check if waiting for transaction result (code 9)
                 # This means card was approved and customer can dispense
                 elif status == b'9':
-                    logger.info("Authorization approved - enabling dispensing")
+                    logger.info("[STATUS-9] Authorization approved - enabling dispensing")
                     
                     # Show authorizing screen if not already shown (handles direct auth path)
                     if display and display.current_state not in ('authorizing', 'ready', 'dispensing', 'waiting'):
@@ -556,6 +567,10 @@ def main():
                         except Exception as reset_error:
                             logger.error(f"Error resetting machine: {reset_error}")
                         time.sleep(RETRY_DELAY)
+                
+                # Unknown/unhandled status code
+                else:
+                    logger.info(f"[STATUS-UNKNOWN] Unhandled status code: {status} (hex={status.hex() if status else 'N/A'})")
                 
                 # Brief delay before next status check
                 time.sleep(STATUS_POLL_INTERVAL)

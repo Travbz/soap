@@ -109,3 +109,6 @@ DISPLAY_HOST = 'localhost'          # Display server host
 DISPLAY_PORT = 5000                 # Display server port
 RECEIPT_DISPLAY_TIMEOUT = 10        # Seconds to show receipt before returning to idle
 ERROR_DISPLAY_TIMEOUT = 10          # Seconds to show error before reset attempt
+
+# Logging configuration
+TX_LOG_FILE = 'last_tx_log.log'     # Transaction log file (overwritten each run to save disk on Pi)
