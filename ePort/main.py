@@ -781,11 +781,6 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             # Get total price
             total_price = transaction.get_total()
             
-            # Display itemized transaction to customer (terminal)
-            print("\n" + "=" * 40)
-            print(transaction.get_summary())
-            print("=" * 40)
-            
             # Safety check: Prevent charging more than MAX_TRANSACTION_PRICE
             if total_price > MAX_TRANSACTION_PRICE:
                 logger.error(f"Price too high: ${total_price:.2f} - refusing transaction")
@@ -793,10 +788,32 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 transaction_complete = True
                 return
             
+            # Show receipt IMMEDIATELY so customer gets instant feedback
+            if display:
+                product_totals = transaction.get_product_totals()
+                receipt_items = [
+                    {
+                        'product_name': totals['product_name'],
+                        'quantity': totals['quantity'],
+                        'unit': totals['unit'],
+                        'price': totals['price']
+                    }
+                    for totals in product_totals.values()
+                ]
+                display.show_receipt(
+                    items=receipt_items,
+                    total=transaction.get_total()
+                )
+            
+            # Display itemized transaction to customer (terminal)
+            print("\n" + "=" * 40)
+            print(transaction.get_summary())
+            print("=" * 40)
+            
             # Convert to cents for payment processor
             price_cents = transaction.get_total_cents()
             
-            # Send transaction result with itemized description
+            # Send transaction result to ePort (serial communication happens while receipt is visible)
             description = transaction.get_eport_description()
             if not safe_transaction_result(
                 payment=payment,
@@ -817,7 +834,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             except Exception as e:
                 logger.warning(f"Could not retrieve transaction ID: {e}")
             
-            # Mark transaction as complete - receipt will be shown after loop exits
+            # Mark transaction as complete
             transaction_complete = True
             
         except PaymentProtocolError:
@@ -994,31 +1011,14 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         logger.error(traceback.format_exc())
         raise MachineHardwareError(f"Dispensing loop error: {e}")
     
-    # After loop exits, show receipt if transaction completed successfully
+    # After loop exits, keep receipt on screen for configured time
     if transaction_complete and not transaction.is_empty():
-        # STATE 5: Complete - Show receipt AFTER payment processing and loop exit
         if display:
-            # Get product totals (combines multiple dispenses of same product)
-            product_totals = transaction.get_product_totals()
-            receipt_items = [
-                {
-                    'product_name': totals['product_name'],
-                    'quantity': totals['quantity'],
-                    'unit': totals['unit'],
-                    'price': totals['price']
-                }
-                for totals in product_totals.values()
-            ]
-            display.show_receipt(
-                items=receipt_items,
-                total=transaction.get_total()
-            )
-            # Show receipt for configured time
+            # Receipt was already shown in on_done_button() for instant feedback
+            # Just wait the configured time then return to idle
             time.sleep(RECEIPT_DISPLAY_TIMEOUT)
-            # Return to idle state after receipt timeout
             display.change_state('idle')
         
-        # Print terminal receipt
         print("\nThank you! Machine ready for next customer\n")
         logger.debug("Machine reset - ready for next customer")
     
