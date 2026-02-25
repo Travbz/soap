@@ -912,9 +912,10 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     break
                 
                 # Update display state based on button activity
+                # Skip if receipt is already showing (on_done_button may be running on interrupt thread)
                 time_since_last_button = current_time - last_button_press_time
                 has_activity = not transaction.is_empty() or current_product_ounces > 0
-                if display:
+                if display and display.current_state != 'complete':
                     if has_activity and time_since_last_button >= WAITING_SCREEN_TIMEOUT:
                         # Button released after dispensing — show "done" screen
                         if display.current_state != 'waiting':
