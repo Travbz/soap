@@ -289,15 +289,15 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
     align-items: center;
     height: 100%;
     min-height: 400px;
-    background: #B8D4E6;
+    background: #ccebf5;
 }
 
 .center-content h1 {
-    color: #2C3D4C;
+    color: #323970;
 }
 
 .center-content h2 {
-    color: #2C3D4C;
+    color: #4e7bbe;
 }
 
 .spinner {
@@ -676,8 +676,8 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
 
 /* Error States */
 .error-content {
-    background: #E74C3C;
-    color: white;
+    background: #ccebf5;
+    color: #000;
     height: 100%;
     min-height: 400px;
 }
@@ -699,11 +699,11 @@ h2 {
 .error-code {
     font-size: 32px;
     margin-top: 20px;
-    opacity: 0.8;
+    color: #000;
 }
 
 .error-contact {
     font-size: 28px;
     margin-top: 40px;
-    opacity: 0.9;
+    color: #000;
 }
