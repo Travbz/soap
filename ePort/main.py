@@ -435,8 +435,8 @@ def main():
         
         while True:
             try:
-                # STATE 1: Idle - waiting for card
-                if display:
+                # STATE 1: Idle - only set if not already in a transaction state
+                if display and display.current_state not in ('authorizing', 'ready', 'dispensing', 'waiting'):
                     display.change_state('idle')
                 
                 # Poll ePort status
@@ -494,8 +494,25 @@ def main():
                             # STATE 3: Ready - show product selection immediately
                             if display:
                                 display.change_state('ready')
-                            # Brief pause to let customer see ready screen
-                            time.sleep(0.5)
+                            # Go directly into dispensing (ready screen stays until button press)
+                            logger.info("Authorization approved - entering dispensing directly")
+                            try:
+                                handle_dispensing(machine, payment, product_manager, display)
+                            except KeyboardInterrupt:
+                                logger.info("Dispensing interrupted by user")
+                                raise
+                            except Exception as e:
+                                logger.error(f"Error during dispensing: {e}")
+                                logger.error(traceback.format_exc())
+                                if display:
+                                    display.show_error("Machine error occurred", error_code=str(e)[:50])
+                                    time.sleep(ERROR_DISPLAY_TIMEOUT)
+                                try:
+                                    machine.reset()
+                                except Exception as reset_error:
+                                    logger.error(f"Error resetting machine: {reset_error}")
+                                time.sleep(RETRY_DELAY)
+                            continue
                     else:
                         logger.warning("Failed to get auth status")
                         
@@ -511,7 +528,9 @@ def main():
                 elif status == b'9':
                     logger.info("Authorization approved - enabling dispensing")
                     
-                    # STATE 4: Dispensing (will be set in handle_dispensing)
+                    # Show ready screen if not already showing
+                    if display and display.current_state != 'ready':
+                        display.change_state('ready')
                     try:
                         handle_dispensing(machine, payment, product_manager, display)
                     except KeyboardInterrupt:
