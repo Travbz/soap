@@ -528,7 +528,12 @@ def main():
                 elif status == b'9':
                     logger.info("Authorization approved - enabling dispensing")
                     
-                    # Show ready screen if not already showing
+                    # Show authorizing screen if not already shown (handles direct auth path)
+                    if display and display.current_state not in ('authorizing', 'ready', 'dispensing', 'waiting'):
+                        display.change_state('authorizing')
+                        time.sleep(2)  # Let customer see card was accepted
+                    
+                    # Show ready screen
                     if display and display.current_state != 'ready':
                         display.change_state('ready')
                     try:
