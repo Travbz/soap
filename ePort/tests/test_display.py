@@ -130,7 +130,7 @@ def run_demo():
     time.sleep(3)
     
     print("8. Error state")
-    display.show_error("Test error message", error_code="TEST-001")
+    display.show_error("We're sorry for the inconvenience", error_code="TEST-001")
     time.sleep(3)
     
     print("\nDemo complete! Returning to idle...")
@@ -196,7 +196,7 @@ def manual_mode():
                 total = sum(item['price'] for item in items)
                 display.show_receipt(items=items, total=total)
         elif state == 'error':
-            display.show_error("Test error message", error_code="TEST-001")
+            display.show_error("We're sorry for the inconvenience", error_code="TEST-001")
     
     show_state(current_index)
     

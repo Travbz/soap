@@ -101,7 +101,7 @@ PRODUCT_SWITCH_DELAY = 0.5  # Delay when switching between products in seconds (
 DISPENSING_INACTIVITY_TIMEOUT = 60  # Seconds of no button activity before auto-completing transaction
 DISPENSING_MAX_SESSION_TIME = 300   # Maximum session duration in seconds (5 minutes total) prevents abuse and sets expectations might wanna increase?? @adam
 INACTIVITY_WARNING_TIME = 45        # Seconds before timeout to display warning to customer
-WAITING_SCREEN_TIMEOUT = 3         # Seconds of no button press to show "Press Done" waiting screen
+WAITING_SCREEN_TIMEOUT = 0.5       # Seconds of no button press to show "Press Done" waiting screen
 
 # Display server configuration
 DISPLAY_ENABLED = True              # Required for production - only set to False for development/testing
@@ -109,3 +109,6 @@ DISPLAY_HOST = 'localhost'          # Display server host
 DISPLAY_PORT = 5000                 # Display server port
 RECEIPT_DISPLAY_TIMEOUT = 10        # Seconds to show receipt before returning to idle
 ERROR_DISPLAY_TIMEOUT = 10          # Seconds to show error before reset attempt
+
+# Logging configuration
+TX_LOG_FILE = 'last_tx_log.log'     # Transaction log file (overwritten each run to save disk on Pi)

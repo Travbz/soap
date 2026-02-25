@@ -7,23 +7,80 @@
 
 body {
     font-family: 'Arial', 'Helvetica', sans-serif;
-    background: #B8D4E6;
+    background: #ccebf5;
     color: #3C4D5C;
     overflow: hidden;
+    height: 100vh;
+    height: 100dvh;
+    width: 100%;
 }
 
 .screen {
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: calc(100vh - 250px);
+    height: calc(100dvh - 250px);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     position: relative;
+    overflow: hidden;
 }
 
 .hidden {
     display: none !important;
 }
+
+/* SVG Info Panel MFE - Client artwork fills the screen above product bar */
+.screen-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: 5;
+}
+
+.screen-svg-img {
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    display: block;
+}
+
+/* Fallback content shown when SVG is missing (onerror hides img, shows this) */
+.screen-fallback {
+    display: none;
+    width: 100%;
+    height: 100%;
+}
+
+/* When SVG is missing, fallback becomes the full screen layout */
+.screen-svg-img[style*="display: none"] ~ .screen-fallback {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+/* Receipt overlay - floats on top of the complete SVG */
+.receipt-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 45%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 15px 20px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.receipt-overlay .receipt-box {
+    pointer-events: auto;
+}
+
 
 /* Product Bar MFE - Persistent component across states */
 .product-bar {
@@ -31,7 +88,7 @@ body {
     display: flex;
     justify-content: space-around;
     padding: 0;
-    min-height: 200px;
+    height: 250px;
     width: 100%;
     position: fixed;
     bottom: 0;
@@ -230,17 +287,17 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    height: calc(100vh - 200px);
+    height: 100%;
     min-height: 400px;
-    background: #B8D4E6;
+    background: #ccebf5;
 }
 
 .center-content h1 {
-    color: #2C3D4C;
+    color: #323970;
 }
 
 .center-content h2 {
-    color: #2C3D4C;
+    color: #4e7bbe;
 }
 
 .spinner {
@@ -319,7 +376,7 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
     justify-content: space-between;
     flex: 1;
     position: relative;
-    height: calc(100vh - 200px);
+    height: 100%;
 }
 
 .warning-left {
@@ -431,8 +488,8 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
 }
 
 .ground-platform {
-    position: fixed;
-    bottom: 200px;
+    position: absolute;
+    bottom: 0;
     left: 0;
     right: 0;
     width: 100vw;
@@ -532,11 +589,12 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
 /* STATE 5: Complete/Receipt */
 #complete-screen {
     background: #B8D4E6;
+    position: relative;
 }
 
 .thanks-section {
     display: flex;
-    height: calc(100vh - 240px);
+    height: 100%;
     padding: 40px 40px 60px 40px;
 }
 
@@ -552,12 +610,10 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
 }
 
 .receipt-box {
-    flex: 1;
     background: white;
-    padding: 30px;
+    padding: 15px 20px;
     border: 3px solid #3C4D5C;
     border-radius: 10px;
-    margin: 20px;
     display: flex;
     flex-direction: column;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -566,59 +622,63 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
 }
 
 .receipt-header {
-    font-size: 36px;
+    font-size: 28px;
     font-weight: bold;
     text-align: center;
-    margin-bottom: 15px;
-    border-bottom: 3px solid #000;
-    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 2px solid #000;
+    padding-bottom: 5px;
     flex-shrink: 0;
 }
 
 .receipt-items {
     flex: 1 1 auto;
-    font-size: 20px;
-    line-height: 1.3;
+    font-size: 16px;
+    line-height: 1.2;
     overflow: hidden;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     min-height: 0;
 }
 
 .receipt-item {
-    margin: 8px 0;
+    margin: 4px 0;
     border-bottom: 1px dashed #ccc;
-    padding-bottom: 6px;
+    padding-bottom: 4px;
     word-wrap: break-word;
 }
 
 .receipt-item-name {
     font-weight: bold;
-    font-size: 22px;
+    font-size: 18px;
     word-wrap: break-word;
     overflow-wrap: break-word;
 }
 
 .receipt-item-details {
-    font-size: 20px;
-    margin-top: 3px;
+    font-size: 16px;
+    margin-top: 2px;
     word-wrap: break-word;
     overflow-wrap: break-word;
 }
 
 .receipt-total-line {
-    font-size: 32px;
+    font-size: 24px;
     font-weight: bold;
-    border-top: 3px solid #000;
-    padding-top: 12px;
+    border-top: 2px solid #000;
+    padding-top: 8px;
     margin-top: auto;
     flex-shrink: 0;
 }
 
+#error-screen {
+    position: relative;
+}
+
 /* Error States */
 .error-content {
-    background: #E74C3C;
-    color: white;
-    height: calc(100vh - 200px);
+    background: #ccebf5;
+    color: #000;
+    height: 100%;
     min-height: 400px;
 }
 
@@ -639,5 +699,11 @@ h2 {
 .error-code {
     font-size: 32px;
     margin-top: 20px;
-    opacity: 0.8;
+    color: #000;
+}
+
+.error-contact {
+    font-size: 28px;
+    margin-top: 40px;
+    color: #000;
 }

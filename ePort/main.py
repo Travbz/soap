@@ -47,16 +47,26 @@ from .config import (
     DISPLAY_HOST,
     DISPLAY_PORT,
     RECEIPT_DISPLAY_TIMEOUT,
-    ERROR_DISPLAY_TIMEOUT
+    ERROR_DISPLAY_TIMEOUT,
+    TX_LOG_FILE
 )
 
 # Configure logging
+log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+log_datefmt = '%Y-%m-%d %H:%M:%S'
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format=log_format,
+    datefmt=log_datefmt
 )
 logger = logging.getLogger(__name__)
+
+# File handler - overwrites on every run so we don't fill up the Pi
+_file_handler = logging.FileHandler(TX_LOG_FILE, mode='w')
+_file_handler.setLevel(logging.DEBUG)
+_file_handler.setFormatter(logging.Formatter(log_format, datefmt=log_datefmt))
+logger.addHandler(_file_handler)
 
 
 class VendingMachineError(Exception):
@@ -435,8 +445,8 @@ def main():
         
         while True:
             try:
-                # STATE 1: Idle - waiting for card
-                if display:
+                # STATE 1: Idle - only set if not already in a transaction state
+                if display and display.current_state not in ('authorizing', 'ready', 'dispensing', 'waiting'):
                     display.change_state('idle')
                 
                 # Poll ePort status
@@ -454,15 +464,24 @@ def main():
                     continue
                 
                 consecutive_errors = 0  # Reset on success
-                logger.debug(f"Status: {status}")
+                display_state = display.current_state if display else 'N/A'
+                logger.info(f"[POLL] status={status} display={display_state}")
                 
-                # Check if ePort is disabled (code 6)
+                # ── ePort Status Machine ──────────────────────────────
+                # 0 = post-transaction idle (settling)
+                # 1 = initializing/resetting
+                # 2+data = auth response (preauth amount + masked card)
+                # 3+data = declined (with error message)
+                # 4+data = warning ("Lost Kiosk Comm", etc.)
+                # 6 = disabled, needs RESET + AUTH_REQ
+                # 7 = enabled, waiting for card tap/swipe
+                # 8 = card detected, processing with bank
+                # 9 = authorized, ready to dispense
+                # ─────────────────────────────────────────────────────
+                
+                # Status 6: Disabled — enable ePort, stay on idle screen
                 if status == b'6':
-                    logger.info("ePort disabled - resetting and requesting authorization")
-                    
-                    # STATE 2: Authorizing
-                    if display:
-                        display.change_state('authorizing')
+                    logger.info("[STATUS-6] ePort disabled - resetting and requesting authorization")
                     
                     if not safe_reset(payment):
                         logger.error("Reset failed - skipping authorization request")
@@ -471,47 +490,36 @@ def main():
                     
                     time.sleep(POST_RESET_DELAY)
                     
-                    # Request authorization
                     if not safe_authorization_request(payment, AUTH_AMOUNT_CENTS):
                         logger.error("Authorization request failed")
                         time.sleep(RETRY_DELAY)
                         continue
-                    
-                    # Check authorization status
-                    time.sleep(AUTHORIZATION_STATUS_CHECK_DELAY)
-                    auth_status = safe_status_check(payment)
-                    if auth_status:
-                        logger.info(f"Auth status: {auth_status}")
-                        
-                        # Check if declined
-                        if auth_status.startswith(b'3'):
-                            logger.warning("Authorization declined by bank")
-                            if display:
-                                display.change_state('declined')
-                            time.sleep(5)  # Show declined message
-                            continue
-                        elif auth_status == b'9':
-                            # STATE 3: Ready - show product selection immediately
-                            if display:
-                                display.change_state('ready')
-                            # Brief pause to let customer see ready screen
-                            time.sleep(0.5)
-                    else:
-                        logger.warning("Failed to get auth status")
-                        
-                # Check if authorization declined (code 3)
-                elif status.startswith(b'3'):
-                    logger.warning("Authorization declined by bank")
-                    if display:
-                        display.change_state('declined')
-                    time.sleep(DECLINED_CARD_RETRY_DELAY)
-                    
-                # Check if waiting for transaction result (code 9)
-                # This means card was approved and customer can dispense
+                    # ePort will transition to status 7 (waiting for card)
+                
+                # Status 7: Waiting for card — keep idle screen
+                elif status == b'7':
+                    logger.info("[STATUS-7] ePort enabled, waiting for card tap/swipe")
+                    if display and display.current_state != 'idle':
+                        display.change_state('idle')
+                
+                # Status 8: Card detected — show authorizing screen
+                elif status == b'8':
+                    logger.info("[STATUS-8] Card detected - processing with bank")
+                    if display and display.current_state != 'authorizing':
+                        display.change_state('authorizing')
+                
+                # Status 2+data: Auth response with card data — keep authorizing
+                elif status.startswith(b'2'):
+                    logger.info(f"[STATUS-2] Auth response received (raw length={len(status)})")
+                    if display and display.current_state != 'authorizing':
+                        display.change_state('authorizing')
+                
+                # Status 9: Authorized — show ready, enter dispensing
                 elif status == b'9':
-                    logger.info("Authorization approved - enabling dispensing")
+                    logger.info("[STATUS-9] Authorization approved - enabling dispensing")
                     
-                    # STATE 4: Dispensing (will be set in handle_dispensing)
+                    if display:
+                        display.change_state('ready')
                     try:
                         handle_dispensing(machine, payment, product_manager, display)
                     except KeyboardInterrupt:
@@ -520,18 +528,37 @@ def main():
                     except Exception as e:
                         logger.error(f"Error during dispensing: {e}")
                         logger.error(traceback.format_exc())
-                        
-                        # STATE 7: Error
                         if display:
                             display.show_error("Machine error occurred", error_code=str(e)[:50])
                             time.sleep(ERROR_DISPLAY_TIMEOUT)
-                        
-                        # Reset machine state on error
                         try:
                             machine.reset()
                         except Exception as reset_error:
                             logger.error(f"Error resetting machine: {reset_error}")
                         time.sleep(RETRY_DELAY)
+                
+                # Status 3+data: Declined
+                elif status.startswith(b'3'):
+                    logger.warning(f"[STATUS-3] Authorization declined (raw={status})")
+                    if display:
+                        display.change_state('declined')
+                    time.sleep(DECLINED_CARD_RETRY_DELAY)
+                
+                # Status 0: Post-transaction idle
+                elif status == b'0':
+                    logger.info("[STATUS-0] Post-transaction idle")
+                
+                # Status 1: Initializing
+                elif status == b'1':
+                    logger.info("[STATUS-1] ePort initializing")
+                
+                # Status 4+data: Warning/error from ePort
+                elif status.startswith(b'4'):
+                    logger.warning(f"[STATUS-4] ePort warning: {status}")
+                
+                # Truly unknown status
+                else:
+                    logger.info(f"[STATUS-?] Unknown status: {status} (hex={status.hex() if status else 'N/A'})")
                 
                 # Brief delay before next status check
                 time.sleep(STATUS_POLL_INTERVAL)
@@ -754,11 +781,6 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             # Get total price
             total_price = transaction.get_total()
             
-            # Display itemized transaction to customer (terminal)
-            print("\n" + "=" * 40)
-            print(transaction.get_summary())
-            print("=" * 40)
-            
             # Safety check: Prevent charging more than MAX_TRANSACTION_PRICE
             if total_price > MAX_TRANSACTION_PRICE:
                 logger.error(f"Price too high: ${total_price:.2f} - refusing transaction")
@@ -766,10 +788,32 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 transaction_complete = True
                 return
             
+            # Show receipt IMMEDIATELY so customer gets instant feedback
+            if display:
+                product_totals = transaction.get_product_totals()
+                receipt_items = [
+                    {
+                        'product_name': totals['product_name'],
+                        'quantity': totals['quantity'],
+                        'unit': totals['unit'],
+                        'price': totals['price']
+                    }
+                    for totals in product_totals.values()
+                ]
+                display.show_receipt(
+                    items=receipt_items,
+                    total=transaction.get_total()
+                )
+            
+            # Display itemized transaction to customer (terminal)
+            print("\n" + "=" * 40)
+            print(transaction.get_summary())
+            print("=" * 40)
+            
             # Convert to cents for payment processor
             price_cents = transaction.get_total_cents()
             
-            # Send transaction result with itemized description
+            # Send transaction result to ePort (serial communication happens while receipt is visible)
             description = transaction.get_eport_description()
             if not safe_transaction_result(
                 payment=payment,
@@ -790,7 +834,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             except Exception as e:
                 logger.warning(f"Could not retrieve transaction ID: {e}")
             
-            # Mark transaction as complete - receipt will be shown after loop exits
+            # Mark transaction as complete
             transaction_complete = True
             
         except PaymentProtocolError:
@@ -806,9 +850,8 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
     
     # Start dispensing mode - set up callbacks
     try:
-        # STATE 4: Dispensing
-        if display:
-            display.change_state('dispensing')
+        # STATE 3: Ready - customer sees "ready to fill" until first button press
+        # Display stays on 'ready' (set after auth) until a product button is pressed
         
         machine.start_dispensing(
             flowmeter_callback=on_flowmeter_pulse,
@@ -868,15 +911,17 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     on_done_button()
                     break
                 
-                # Show waiting screen after WAITING_SCREEN_TIMEOUT seconds of no button press
-                # Only show if something has been dispensed or is currently being dispensed
+                # Update display state based on button activity
+                # Skip if receipt is already showing (on_done_button may be running on interrupt thread)
                 time_since_last_button = current_time - last_button_press_time
                 has_activity = not transaction.is_empty() or current_product_ounces > 0
-                if display and has_activity:
-                    if time_since_last_button >= WAITING_SCREEN_TIMEOUT:
+                if display and display.current_state != 'complete':
+                    if has_activity and time_since_last_button >= WAITING_SCREEN_TIMEOUT:
+                        # Button released after dispensing — show "done" screen
                         if display.current_state != 'waiting':
                             display.change_state('waiting')
-                    else:
+                    elif has_activity and time_since_last_button < WAITING_SCREEN_TIMEOUT:
+                        # Actively holding button — show "stop early" screen
                         if display.current_state != 'dispensing':
                             display.change_state('dispensing')
                 
@@ -939,13 +984,10 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                         
                         button_was_pressed = False
                 
-                # Check if done button was pressed (reset activity timer and button press time)
+                # Check if done button was pressed — only reset activity timer
+                # Do NOT reset last_button_press_time to avoid flashing dispensing screen
                 if machine.is_done_button_pressed():
                     last_activity_time = current_time
-                    last_button_press_time = current_time
-                    # Ensure we're back in dispensing state (not waiting) before completing
-                    if display and display.current_state == 'waiting':
-                        display.change_state('dispensing')
                 
                 motor_error_count = 0
                 time.sleep(MOTOR_CONTROL_LOOP_DELAY)
@@ -970,31 +1012,14 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         logger.error(traceback.format_exc())
         raise MachineHardwareError(f"Dispensing loop error: {e}")
     
-    # After loop exits, show receipt if transaction completed successfully
+    # After loop exits, keep receipt on screen for configured time
     if transaction_complete and not transaction.is_empty():
-        # STATE 5: Complete - Show receipt AFTER payment processing and loop exit
         if display:
-            # Get product totals (combines multiple dispenses of same product)
-            product_totals = transaction.get_product_totals()
-            receipt_items = [
-                {
-                    'product_name': totals['product_name'],
-                    'quantity': totals['quantity'],
-                    'unit': totals['unit'],
-                    'price': totals['price']
-                }
-                for totals in product_totals.values()
-            ]
-            display.show_receipt(
-                items=receipt_items,
-                total=transaction.get_total()
-            )
-            # Show receipt for configured time
+            # Receipt was already shown in on_done_button() for instant feedback
+            # Just wait the configured time then return to idle
             time.sleep(RECEIPT_DISPLAY_TIMEOUT)
-            # Return to idle state after receipt timeout
             display.change_state('idle')
         
-        # Print terminal receipt
         print("\nThank you! Machine ready for next customer\n")
         logger.debug("Machine reset - ready for next customer")
     
