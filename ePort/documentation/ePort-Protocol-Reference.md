@@ -214,7 +214,7 @@ Command: [payload bytes] + [CRC bytes] + CR
 
 ## Status Codes
 
-### Common Status Responses
+### Documented Status Codes (from ePort manual)
 
 | Code | Meaning | Action |
 |------|---------|--------|
@@ -222,6 +222,35 @@ Command: [payload bytes] + [CRC bytes] + CR
 | `9` | Authorized | Customer can dispense product |
 | `3` | Declined | Card declined, terminate transaction |
 | `17` | Transaction ID | Response contains transaction ID |
+
+### Discovered Status Codes (from serial log analysis, Feb 2026)
+
+These codes were identified by logging all STATUS responses during live transactions:
+
+| Code | Meaning | Display State | Notes |
+|------|---------|---------------|-------|
+| `0` | Post-transaction idle | idle | ePort settling after transaction completion |
+| `1` | Initializing | idle | ePort reinitializing after reset cycle |
+| `2` + RS + data | Auth response | authorizing | Contains preauth amount + masked card number (e.g. `2000` + `6396***********9701` + CRC) |
+| `3` + RS + data | Declined | declined | Contains error message (e.g. `"P1= Error occurred"`) |
+| `4` + RS + data | Warning | — | ePort warning message (e.g. `"Lost Kiosk Comm"`) |
+| `6` | Disabled | idle | Needs RESET + AUTH_REQ to enable |
+| `7` | Waiting for card | idle | ePort enabled, ready for tap/swipe |
+| `8` | Card detected | **authorizing** | **Card tapped/swiped — processing with bank** |
+| `9` | Authorized | ready | Approved, customer can dispense |
+
+### Typical Transaction Flow (observed)
+
+```
+6 → RESET+AUTH_REQ → 7 7 7 7 ... → 8 8 → 2+card_data → 9 → dispensing → 0 0 0 ...
+    (disabled)        (waiting)      (card tap)  (response)  (approved)      (settling)
+```
+
+**Direct repeat transaction** (ePort stays enabled between customers):
+```
+0 0 0 ... → 8 → 2+card_data → 9
+(settling)   (card tap)         (approved)
+```
 
 ---
 

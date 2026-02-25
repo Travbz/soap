@@ -467,13 +467,21 @@ def main():
                 display_state = display.current_state if display else 'N/A'
                 logger.info(f"[POLL] status={status} display={display_state}")
                 
-                # Check if ePort is disabled (code 6)
+                # ── ePort Status Machine ──────────────────────────────
+                # 0 = post-transaction idle (settling)
+                # 1 = initializing/resetting
+                # 2+data = auth response (preauth amount + masked card)
+                # 3+data = declined (with error message)
+                # 4+data = warning ("Lost Kiosk Comm", etc.)
+                # 6 = disabled, needs RESET + AUTH_REQ
+                # 7 = enabled, waiting for card tap/swipe
+                # 8 = card detected, processing with bank
+                # 9 = authorized, ready to dispense
+                # ─────────────────────────────────────────────────────
+                
+                # Status 6: Disabled — enable ePort, stay on idle screen
                 if status == b'6':
                     logger.info("[STATUS-6] ePort disabled - resetting and requesting authorization")
-                    
-                    # STATE 2: Authorizing
-                    if display:
-                        display.change_state('authorizing')
                     
                     if not safe_reset(payment):
                         logger.error("Reset failed - skipping authorization request")
@@ -482,70 +490,35 @@ def main():
                     
                     time.sleep(POST_RESET_DELAY)
                     
-                    # Request authorization
                     if not safe_authorization_request(payment, AUTH_AMOUNT_CENTS):
                         logger.error("Authorization request failed")
                         time.sleep(RETRY_DELAY)
                         continue
-                    
-                    # Check authorization status
-                    time.sleep(AUTHORIZATION_STATUS_CHECK_DELAY)
-                    auth_status = safe_status_check(payment)
-                    logger.info(f"[AUTH-CHECK] auth_status={auth_status}")
-                    if auth_status:
-                        # Check if declined
-                        if auth_status.startswith(b'3'):
-                            logger.warning("[AUTH-DECLINED] Authorization declined by bank")
-                            if display:
-                                display.change_state('declined')
-                            time.sleep(5)  # Show declined message
-                            continue
-                        elif auth_status == b'9':
-                            # STATE 3: Ready - show product selection immediately
-                            if display:
-                                display.change_state('ready')
-                            logger.info("[AUTH-APPROVED] Entering dispensing directly")
-                            try:
-                                handle_dispensing(machine, payment, product_manager, display)
-                            except KeyboardInterrupt:
-                                logger.info("Dispensing interrupted by user")
-                                raise
-                            except Exception as e:
-                                logger.error(f"Error during dispensing: {e}")
-                                logger.error(traceback.format_exc())
-                                if display:
-                                    display.show_error("Machine error occurred", error_code=str(e)[:50])
-                                    time.sleep(ERROR_DISPLAY_TIMEOUT)
-                                try:
-                                    machine.reset()
-                                except Exception as reset_error:
-                                    logger.error(f"Error resetting machine: {reset_error}")
-                                time.sleep(RETRY_DELAY)
-                            continue
-                        else:
-                            logger.info(f"[AUTH-WAITING] Auth not yet resolved, status={auth_status}")
-                    else:
-                        logger.warning("[AUTH-CHECK] Failed to get auth status (None returned)")
-                        
-                # Check if authorization declined (code 3)
-                elif status.startswith(b'3'):
-                    logger.warning(f"[STATUS-3] Authorization declined by bank (raw={status})")
-                    if display:
-                        display.change_state('declined')
-                    time.sleep(DECLINED_CARD_RETRY_DELAY)
-                    
-                # Check if waiting for transaction result (code 9)
-                # This means card was approved and customer can dispense
+                    # ePort will transition to status 7 (waiting for card)
+                
+                # Status 7: Waiting for card — keep idle screen
+                elif status == b'7':
+                    logger.info("[STATUS-7] ePort enabled, waiting for card tap/swipe")
+                    if display and display.current_state != 'idle':
+                        display.change_state('idle')
+                
+                # Status 8: Card detected — show authorizing screen
+                elif status == b'8':
+                    logger.info("[STATUS-8] Card detected - processing with bank")
+                    if display and display.current_state != 'authorizing':
+                        display.change_state('authorizing')
+                
+                # Status 2+data: Auth response with card data — keep authorizing
+                elif status.startswith(b'2'):
+                    logger.info(f"[STATUS-2] Auth response received (raw length={len(status)})")
+                    if display and display.current_state != 'authorizing':
+                        display.change_state('authorizing')
+                
+                # Status 9: Authorized — show ready, enter dispensing
                 elif status == b'9':
                     logger.info("[STATUS-9] Authorization approved - enabling dispensing")
                     
-                    # Show authorizing screen if not already shown (handles direct auth path)
-                    if display and display.current_state not in ('authorizing', 'ready', 'dispensing', 'waiting'):
-                        display.change_state('authorizing')
-                        time.sleep(2)  # Let customer see card was accepted
-                    
-                    # Show ready screen
-                    if display and display.current_state != 'ready':
+                    if display:
                         display.change_state('ready')
                     try:
                         handle_dispensing(machine, payment, product_manager, display)
@@ -555,22 +528,37 @@ def main():
                     except Exception as e:
                         logger.error(f"Error during dispensing: {e}")
                         logger.error(traceback.format_exc())
-                        
-                        # STATE 7: Error
                         if display:
                             display.show_error("Machine error occurred", error_code=str(e)[:50])
                             time.sleep(ERROR_DISPLAY_TIMEOUT)
-                        
-                        # Reset machine state on error
                         try:
                             machine.reset()
                         except Exception as reset_error:
                             logger.error(f"Error resetting machine: {reset_error}")
                         time.sleep(RETRY_DELAY)
                 
-                # Unknown/unhandled status code
+                # Status 3+data: Declined
+                elif status.startswith(b'3'):
+                    logger.warning(f"[STATUS-3] Authorization declined (raw={status})")
+                    if display:
+                        display.change_state('declined')
+                    time.sleep(DECLINED_CARD_RETRY_DELAY)
+                
+                # Status 0: Post-transaction idle
+                elif status == b'0':
+                    logger.info("[STATUS-0] Post-transaction idle")
+                
+                # Status 1: Initializing
+                elif status == b'1':
+                    logger.info("[STATUS-1] ePort initializing")
+                
+                # Status 4+data: Warning/error from ePort
+                elif status.startswith(b'4'):
+                    logger.warning(f"[STATUS-4] ePort warning: {status}")
+                
+                # Truly unknown status
                 else:
-                    logger.info(f"[STATUS-UNKNOWN] Unhandled status code: {status} (hex={status.hex() if status else 'N/A'})")
+                    logger.info(f"[STATUS-?] Unknown status: {status} (hex={status.hex() if status else 'N/A'})")
                 
                 # Brief delay before next status check
                 time.sleep(STATUS_POLL_INTERVAL)
