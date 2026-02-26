@@ -47,6 +47,7 @@ from .config import (
     DISPLAY_ENABLED,
     DISPLAY_HOST,
     DISPLAY_PORT,
+    RECEIPT_DISPLAY_TIMEOUT,
     ERROR_DISPLAY_TIMEOUT,
     SALES_TAX_RATE,
     RECEIPT_TIMEZONE_OFFSET,
@@ -1041,8 +1042,11 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         logger.error(traceback.format_exc())
         raise MachineHardwareError(f"Dispensing loop error: {e}")
     
-    # After loop exits, reset display to idle
+    # After loop exits, wait for receipt countdown then reset display
     if display:
+        if transaction_complete and not transaction.is_empty():
+            # Wait for JS receipt countdown to finish before clearing
+            time.sleep(RECEIPT_DISPLAY_TIMEOUT)
         display.change_state('idle')
     
     if transaction_complete and not transaction.is_empty():
