@@ -540,10 +540,6 @@ def main():
                         except Exception as reset_error:
                             logger.error(f"Error resetting machine: {reset_error}")
                         time.sleep(RETRY_DELAY)
-                    
-                    # Safety net: reset ePort after dispensing to ensure clean state
-                    # Prevents stale status 9 from re-entering handle_dispensing
-                    safe_reset(payment)
                 
                 # Status 3+data: Declined
                 elif status.startswith(b'3'):
