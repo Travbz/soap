@@ -172,6 +172,8 @@ class TransactionTracker:
                 products_str += "..."
             desc = f"{len(self.items)} items: {products_str}"
         
+        # Strip non-ASCII chars (ePort serial protocol is ASCII-only)
+        desc = desc.encode('ascii', errors='ignore').decode('ascii')
         # Truncate to 30 bytes (ePort limit)
         return desc[:30]
     

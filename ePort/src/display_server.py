@@ -141,20 +141,28 @@ class DisplayServer:
         """
         self.socketio.emit('update_total', {'total': total})
     
-    def show_receipt(self, items: List[Dict], total: float) -> None:
+    def show_receipt(self, items: List[Dict], total: float,
+                     subtotal: float = 0.0, tax: float = 0.0,
+                     timestamp: str = '') -> None:
         """
-        Show final receipt
+        Show final receipt with tax and timestamp
         
         Args:
             items: List of items with {product_name, quantity, unit, price}
-            total: Final transaction total
+            total: Final transaction total (including tax)
+            subtotal: Pre-tax subtotal
+            tax: Tax amount in dollars
+            timestamp: Formatted timestamp string (e.g., '02/25/2026 03:15 PM CST')
         """
         self.change_state('complete')
         self.socketio.emit('show_receipt', {
             'items': items,
-            'total': total
+            'subtotal': subtotal,
+            'tax': tax,
+            'total': total,
+            'timestamp': timestamp
         })
-        logger.info(f"Receipt displayed: {len(items)} items, ${total:.2f}")
+        logger.info(f"Receipt displayed: {len(items)} items, ${total:.2f} (tax: ${tax:.2f})")
     
     def show_error(self, error_message: str, error_code: Optional[str] = None) -> None:
         """

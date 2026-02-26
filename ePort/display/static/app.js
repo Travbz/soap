@@ -187,7 +187,7 @@ socket.on('update_total', (data) => {
 
 // WebSocket event: Show receipt
 socket.on('show_receipt', (data) => {
-    const { items, total } = data;
+    const { items, subtotal, tax, total, timestamp } = data;
     
     // Populate receipt items
     const receiptItemsContainer = document.getElementById('receipt-items');
@@ -210,10 +210,32 @@ socket.on('show_receipt', (data) => {
         });
     }
     
+    // Update subtotal
+    const receiptSubtotalElement = document.getElementById('receipt-subtotal');
+    if (receiptSubtotalElement) {
+        receiptSubtotalElement.textContent = (subtotal || total).toFixed(2);
+    }
+    
+    // Update tax
+    const receiptTaxRow = document.getElementById('receipt-tax-row');
+    const receiptTaxElement = document.getElementById('receipt-tax');
+    if (tax && tax > 0) {
+        if (receiptTaxRow) receiptTaxRow.style.display = '';
+        if (receiptTaxElement) receiptTaxElement.textContent = tax.toFixed(2);
+    } else {
+        if (receiptTaxRow) receiptTaxRow.style.display = 'none';
+    }
+    
     // Update total
     const receiptTotalElement = document.getElementById('receipt-total');
     if (receiptTotalElement) {
         receiptTotalElement.textContent = total.toFixed(2);
+    }
+    
+    // Update timestamp
+    const receiptTimestampElement = document.getElementById('receipt-timestamp');
+    if (receiptTimestampElement) {
+        receiptTimestampElement.textContent = timestamp || '';
     }
     
     // Show complete screen

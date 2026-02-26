@@ -10,6 +10,7 @@ import serial
 import logging
 import traceback
 from typing import Optional
+from datetime import datetime, timezone, timedelta
 
 try:
     import RPi.GPIO as GPIO
@@ -48,6 +49,9 @@ from .config import (
     DISPLAY_PORT,
     RECEIPT_DISPLAY_TIMEOUT,
     ERROR_DISPLAY_TIMEOUT,
+    SALES_TAX_RATE,
+    RECEIPT_TIMEZONE_OFFSET,
+    RECEIPT_TIMEZONE_NAME,
     TX_LOG_FILE
 )
 
@@ -645,6 +649,12 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
     # Flag to signal that transaction is complete or cancelled
     transaction_complete = False
     
+    # Guard against on_done_button being called twice (GPIO interrupt + inactivity timeout race)
+    done_processing = False
+    
+    # Track when receipt was shown so post-loop sleep matches JS countdown
+    receipt_shown_time = 0.0
+    
     def on_flowmeter_pulse(ounces: float, price: float):
         """
         Callback for flowmeter pulses - tracks current product dispensing
@@ -660,10 +670,10 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             if product:
                 logger.debug(f"{product.name}: {ounces:.3f} {product.unit} - ${price:.2f}")
                 
-                # Update display with current segment only (not accumulated)
-                # Each product starts fresh at 0, accumulated totals only shown on receipt
-                # Only mark as active if motor is actually running (prevents flicker)
+                # Update display - ounces/price from machine already include accumulated values
+                # (machine.py restores per-product pulse counts on product switch)
                 if display:
+                    logger.info(f"[DISPLAY] {product.name} ounces={ounces:.2f}oz price=${price:.2f}")
                     display.update_product(
                         product_id=product.id,
                         product_name=product.name,
@@ -673,8 +683,9 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                         is_active=motor_is_running
                     )
                     
-                    # Update grand total (includes all previously recorded products)
-                    total = transaction.get_total() + price
+                    # Grand total from machine's per-product price map (already updated for current product)
+                    total = sum(machine.product_price_map.values())
+                    logger.info(f"[DISPLAY] Grand total: ${total:.2f} (from {len(machine.product_price_map)} products)")
                     display.update_total(total)
             
             last_activity_time = time.time()
@@ -693,32 +704,22 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         nonlocal current_product_ounces, last_product_switch_time, last_button_press_time
         
         try:
-            # Record previous product if any was dispensed
+            # Mark previous product as inactive on display (don't record to transaction yet —
+            # all products are recorded at once from machine maps in on_done_button)
             prev_product = machine.get_current_product()
             if prev_product and current_product_ounces > 0:
-                price = prev_product.calculate_price(current_product_ounces)
-                transaction.add_item(
-                    product_id=prev_product.id,
-                    product_name=prev_product.name,
-                    quantity=current_product_ounces,
-                    unit=prev_product.unit,
-                    price=price
-                )
-                logger.info(f"Recorded: {prev_product.name} {current_product_ounces:.2f} {prev_product.unit} - ${price:.2f}")
-                
-                # Update display to show accumulated total for previous product (not active)
                 if display:
-                    product_totals = transaction.get_product_totals()
-                    if prev_product.id in product_totals:
-                        totals = product_totals[prev_product.id]
-                        display.update_product(
-                            product_id=prev_product.id,
-                            product_name=totals['product_name'],
-                            quantity=totals['quantity'],
-                            unit=totals['unit'],
-                            price=totals['price'],
-                            is_active=False
-                        )
+                    prev_oz = machine.product_ounces_map.get(prev_product.id, current_product_ounces)
+                    prev_price = machine.product_price_map.get(prev_product.id, 0.0)
+                    logger.info(f"[SWITCH] Prev product {prev_product.name} accumulated: {prev_oz:.2f}oz ${prev_price:.2f}")
+                    display.update_product(
+                        product_id=prev_product.id,
+                        product_name=prev_product.name,
+                        quantity=prev_oz,
+                        unit=prev_product.unit,
+                        price=prev_price,
+                        is_active=False
+                    )
             
             # Switch to new product
             logger.info(f"Switching to: {product.name}")
@@ -727,15 +728,20 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             last_product_switch_time = time.time()
             last_button_press_time = time.time()
             
-            # Update display for new product - always show 0.0 to start fresh
-            # Note: Accumulated totals only shown on receipt, not during dispensing
+            # Update display for new product - machine will restore its accumulated pulse count
             if display:
+                new_oz = machine.product_ounces_map.get(product.id, 0.0)
+                new_price = machine.product_price_map.get(product.id, 0.0)
+                if new_oz > 0:
+                    logger.info(f"[SWITCH] New product {product.name} has prev accumulated: {new_oz:.2f}oz ${new_price:.2f}")
+                else:
+                    logger.info(f"[SWITCH] New product {product.name} starting fresh at 0")
                 display.update_product(
                     product_id=product.id,
                     product_name=product.name,
-                    quantity=0.0,
+                    quantity=new_oz,
                     unit=product.unit,
-                    price=0.0,
+                    price=new_price,
                     is_active=True
                 )
             
@@ -747,46 +753,68 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         Callback when customer presses "done" - complete multi-product transaction
         
         Records final product, validates transaction, sends itemized result to payment processor.
+        Guarded against re-entry (GPIO interrupt thread + inactivity timeout race).
         """
-        nonlocal transaction_complete, current_product_ounces
+        nonlocal transaction_complete, done_processing, receipt_shown_time
+        
+        # Prevent double-execution (GPIO interrupt can race with inactivity timeout)
+        if done_processing or transaction_complete:
+            logger.debug("on_done_button already processed - ignoring duplicate call")
+            return
+        done_processing = True
         
         try:
-            # Record final product if any was being dispensed
-            current_product = machine.get_current_product()
-            if current_product and current_product_ounces > 0:
-                price = current_product.calculate_price(current_product_ounces)
-                transaction.add_item(
-                    product_id=current_product.id,
-                    product_name=current_product.name,
-                    quantity=current_product_ounces,
-                    unit=current_product.unit,
-                    price=price
-                )
-                logger.info(f"Recorded: {current_product.name} {current_product_ounces:.2f} {current_product.unit} - ${price:.2f}")
+            # Record ALL products from machine's accumulated maps (single source of truth)
+            # This avoids double-counting when switching back and forth between products
+            all_products = product_manager.list_products()
+            products_by_id = {p.id: p for p in all_products}
+            for product_id, accumulated_oz in machine.product_ounces_map.items():
+                if accumulated_oz > 0 and product_id in products_by_id:
+                    p = products_by_id[product_id]
+                    accumulated_price = machine.product_price_map.get(product_id, 0.0)
+                    transaction.add_item(
+                        product_id=product_id,
+                        product_name=p.name,
+                        quantity=accumulated_oz,
+                        unit=p.unit,
+                        price=accumulated_price
+                    )
+                    logger.info(f"Recorded: {p.name} {accumulated_oz:.2f} {p.unit} - ${accumulated_price:.2f}")
             
             # Check if anything was dispensed
             if transaction.is_empty():
                 logger.warning("Done button pressed but no products dispensed - cancelling transaction")
                 machine.reset()
-                transaction_complete = True
                 return
             
             # Check if too many items (prevent abuse)
             if transaction.get_item_count() > MAX_ITEMS_PER_TRANSACTION:
                 logger.error(f"Too many items ({transaction.get_item_count()}) - refusing transaction")
                 machine.reset()
-                transaction_complete = True
                 return
             
             # Get total price
-            total_price = transaction.get_total()
+            subtotal = transaction.get_total()
+            
+            # Calculate ePort charge first so receipt matches exactly what card is charged
+            # ePort multiplies quantity × price, so we send per-item price
+            item_count = len(transaction.get_product_totals())
+            raw_total_cents = int(round((subtotal + subtotal * SALES_TAX_RATE) * 100))
+            per_item_cents = round(raw_total_cents / item_count)
+            # Actual charge is what the ePort will compute: quantity × per-item price
+            actual_charge_cents = item_count * per_item_cents
+            total_price = actual_charge_cents / 100.0
+            tax_amount = round(total_price - subtotal, 2)
             
             # Safety check: Prevent charging more than MAX_TRANSACTION_PRICE
             if total_price > MAX_TRANSACTION_PRICE:
                 logger.error(f"Price too high: ${total_price:.2f} - refusing transaction")
                 machine.reset()
-                transaction_complete = True
                 return
+            
+            # Generate receipt timestamp in configured timezone
+            tz = timezone(timedelta(hours=RECEIPT_TIMEZONE_OFFSET))
+            receipt_time = datetime.now(tz).strftime('%m/%d/%Y %I:%M %p') + ' ' + RECEIPT_TIMEZONE_NAME
             
             # Show receipt IMMEDIATELY so customer gets instant feedback
             if display:
@@ -802,29 +830,37 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 ]
                 display.show_receipt(
                     items=receipt_items,
-                    total=transaction.get_total()
+                    subtotal=subtotal,
+                    tax=tax_amount,
+                    total=total_price,
+                    timestamp=receipt_time
                 )
+                receipt_shown_time = time.time()
             
             # Display itemized transaction to customer (terminal)
             print("\n" + "=" * 40)
             print(transaction.get_summary())
+            if SALES_TAX_RATE > 0:
+                print(f"TAX ({SALES_TAX_RATE * 100:.2g}%): ${tax_amount:.2f}")
+            print(f"TOTAL: ${total_price:.2f}")
+            print(f"Time: {receipt_time}")
             print("=" * 40)
-            
-            # Convert to cents for payment processor
-            price_cents = transaction.get_total_cents()
             
             # Send transaction result to ePort (serial communication happens while receipt is visible)
             description = transaction.get_eport_description()
             if not safe_transaction_result(
                 payment=payment,
-                quantity=transaction.get_item_count(),
-                price_cents=price_cents,
+                quantity=item_count,
+                price_cents=per_item_cents,
                 item_id="1",
                 description=description
             ):
-                raise PaymentProtocolError("Failed to send transaction result")
+                # Serial comm failed - reset ePort to cancel stale authorization
+                # Without this, ePort stays at status 9 and main loop re-enters dispensing forever
+                logger.error("Failed to send transaction result - resetting ePort to cancel authorization")
+                safe_reset(payment)
             
-            logger.info(f"Transaction complete: {transaction.get_compact_summary()}")
+            logger.info(f"Transaction complete: {transaction.get_compact_summary()} (tax: ${tax_amount:.2f}, total: ${total_price:.2f})")
             
             # Try to get transaction ID
             try:
@@ -834,11 +870,6 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             except Exception as e:
                 logger.warning(f"Could not retrieve transaction ID: {e}")
             
-            # Mark transaction as complete
-            transaction_complete = True
-            
-        except PaymentProtocolError:
-            raise
         except Exception as e:
             logger.error(f"Error in done button callback: {e}")
             logger.error(traceback.format_exc())
@@ -846,7 +877,9 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 machine.reset()
             except Exception as reset_error:
                 logger.error(f"Error resetting machine after callback error: {reset_error}")
-            raise MachineHardwareError(f"Error completing transaction: {e}")
+        finally:
+            # Always mark complete so the main loop exits (even if serial comm failed)
+            transaction_complete = True
     
     # Start dispensing mode - set up callbacks
     try:
@@ -1012,18 +1045,21 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         logger.error(traceback.format_exc())
         raise MachineHardwareError(f"Dispensing loop error: {e}")
     
-    # After loop exits, keep receipt on screen for configured time
+    # After loop exits, wait for JS receipt countdown to finish then reset display
+    if display:
+        if transaction_complete and not transaction.is_empty() and receipt_shown_time > 0:
+            # Sleep only the remaining time so product bar clears in sync with JS countdown
+            elapsed = time.time() - receipt_shown_time
+            remaining = max(0, RECEIPT_DISPLAY_TIMEOUT - elapsed)
+            if remaining > 0:
+                time.sleep(remaining)
+        display.change_state('idle')
+    
     if transaction_complete and not transaction.is_empty():
-        if display:
-            # Receipt was already shown in on_done_button() for instant feedback
-            # Just wait the configured time then return to idle
-            time.sleep(RECEIPT_DISPLAY_TIMEOUT)
-            display.change_state('idle')
-        
         print("\nThank you! Machine ready for next customer\n")
         logger.debug("Machine reset - ready for next customer")
     
-    # Finally block always runs to clean up hardware
+    # Always clean up hardware
     try:
         machine.reset()
     except Exception as e:

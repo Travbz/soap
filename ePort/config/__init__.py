@@ -110,5 +110,14 @@ DISPLAY_PORT = 5000                 # Display server port
 RECEIPT_DISPLAY_TIMEOUT = 10        # Seconds to show receipt before returning to idle
 ERROR_DISPLAY_TIMEOUT = 10          # Seconds to show error before reset attempt
 
+# Sales tax configuration
+STATE_TAX_RATE = 0.04225                # State sales tax rate as decimal (e.g., 0.04225 for Missouri 4.225%)
+LOCAL_TAX_RATE = 0.03875                # Local/city sales tax rate as decimal (e.g., 0.02125 for Springfield 2.125%)
+SALES_TAX_RATE = STATE_TAX_RATE + LOCAL_TAX_RATE  # Combined tax rate applied to transactions
+
+# Receipt timezone (Central Standard Time = UTC-6)
+RECEIPT_TIMEZONE_OFFSET = -6        # UTC offset in hours for receipt timestamps
+RECEIPT_TIMEZONE_NAME = 'CST'       # Timezone abbreviation displayed on receipt
+
 # Logging configuration
 TX_LOG_FILE = 'last_tx_log.log'     # Transaction log file (overwritten each run to save disk on Pi)
