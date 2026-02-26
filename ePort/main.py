@@ -649,6 +649,9 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
     # Flag to signal that transaction is complete or cancelled
     transaction_complete = False
     
+    # Guard against on_done_button being called twice (GPIO interrupt + inactivity timeout race)
+    done_processing = False
+    
     def on_flowmeter_pulse(ounces: float, price: float):
         """
         Callback for flowmeter pulses - tracks current product dispensing
@@ -751,8 +754,15 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         Callback when customer presses "done" - complete multi-product transaction
         
         Records final product, validates transaction, sends itemized result to payment processor.
+        Guarded against re-entry (GPIO interrupt thread + inactivity timeout race).
         """
-        nonlocal transaction_complete, current_product_ounces
+        nonlocal transaction_complete, current_product_ounces, done_processing
+        
+        # Prevent double-execution (GPIO interrupt can race with inactivity timeout)
+        if done_processing or transaction_complete:
+            logger.debug("on_done_button already processed - ignoring duplicate call")
+            return
+        done_processing = True
         
         try:
             # Record final product if any was being dispensed
@@ -772,14 +782,12 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             if transaction.is_empty():
                 logger.warning("Done button pressed but no products dispensed - cancelling transaction")
                 machine.reset()
-                transaction_complete = True
                 return
             
             # Check if too many items (prevent abuse)
             if transaction.get_item_count() > MAX_ITEMS_PER_TRANSACTION:
                 logger.error(f"Too many items ({transaction.get_item_count()}) - refusing transaction")
                 machine.reset()
-                transaction_complete = True
                 return
             
             # Get total price
@@ -793,7 +801,6 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             if total_price > MAX_TRANSACTION_PRICE:
                 logger.error(f"Price too high: ${total_price:.2f} - refusing transaction")
                 machine.reset()
-                transaction_complete = True
                 return
             
             # Generate receipt timestamp in configured timezone
@@ -841,7 +848,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 item_id="1",
                 description=description
             ):
-                raise PaymentProtocolError("Failed to send transaction result")
+                logger.error("Failed to send transaction result to ePort")
             
             logger.info(f"Transaction complete: {transaction.get_compact_summary()} (tax: ${tax_amount:.2f}, total: ${total_price:.2f})")
             
@@ -853,11 +860,6 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             except Exception as e:
                 logger.warning(f"Could not retrieve transaction ID: {e}")
             
-            # Mark transaction as complete
-            transaction_complete = True
-            
-        except PaymentProtocolError:
-            raise
         except Exception as e:
             logger.error(f"Error in done button callback: {e}")
             logger.error(traceback.format_exc())
@@ -865,7 +867,9 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 machine.reset()
             except Exception as reset_error:
                 logger.error(f"Error resetting machine after callback error: {reset_error}")
-            raise MachineHardwareError(f"Error completing transaction: {e}")
+        finally:
+            # Always mark complete so the main loop exits (even if serial comm failed)
+            transaction_complete = True
     
     # Start dispensing mode - set up callbacks
     try:
@@ -1031,18 +1035,19 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         logger.error(traceback.format_exc())
         raise MachineHardwareError(f"Dispensing loop error: {e}")
     
-    # After loop exits, keep receipt on screen for configured time
-    if transaction_complete and not transaction.is_empty():
-        if display:
+    # After loop exits, keep receipt on screen then reset display
+    if display:
+        if transaction_complete and not transaction.is_empty():
             # Receipt was already shown in on_done_button() for instant feedback
             # Just wait the configured time then return to idle
             time.sleep(RECEIPT_DISPLAY_TIMEOUT)
-            display.change_state('idle')
-        
+        display.change_state('idle')
+    
+    if transaction_complete and not transaction.is_empty():
         print("\nThank you! Machine ready for next customer\n")
         logger.debug("Machine reset - ready for next customer")
     
-    # Finally block always runs to clean up hardware
+    # Always clean up hardware
     try:
         machine.reset()
     except Exception as e:
