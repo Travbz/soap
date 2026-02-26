@@ -847,7 +847,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             description = transaction.get_eport_description()
             if not safe_transaction_result(
                 payment=payment,
-                quantity=transaction.get_item_count(),
+                quantity=1,  # Always 1 — price_cents is already the full transaction total
                 price_cents=price_cents,
                 item_id="1",
                 description=description
