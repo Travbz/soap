@@ -661,12 +661,36 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
     overflow-wrap: break-word;
 }
 
+.receipt-subtotal-line {
+    font-size: 18px;
+    font-weight: bold;
+    border-top: 1px dashed #ccc;
+    padding-top: 5px;
+    margin-top: auto;
+    flex-shrink: 0;
+}
+
+.receipt-tax-line {
+    font-size: 18px;
+    font-weight: bold;
+    padding-top: 2px;
+    flex-shrink: 0;
+}
+
 .receipt-total-line {
     font-size: 24px;
     font-weight: bold;
     border-top: 2px solid #000;
     padding-top: 8px;
-    margin-top: auto;
+    margin-top: 4px;
+    flex-shrink: 0;
+}
+
+.receipt-timestamp {
+    font-size: 14px;
+    color: #666;
+    text-align: center;
+    padding-top: 6px;
     flex-shrink: 0;
 }
 

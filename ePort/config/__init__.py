@@ -110,5 +110,12 @@ DISPLAY_PORT = 5000                 # Display server port
 RECEIPT_DISPLAY_TIMEOUT = 10        # Seconds to show receipt before returning to idle
 ERROR_DISPLAY_TIMEOUT = 10          # Seconds to show error before reset attempt
 
+# Sales tax configuration
+SALES_TAX_RATE = 0.0                # Sales tax rate as decimal (e.g., 0.08 for 8%). Set to 0.0 if no tax applies.
+
+# Receipt timezone (Central Standard Time = UTC-6)
+RECEIPT_TIMEZONE_OFFSET = -6        # UTC offset in hours for receipt timestamps
+RECEIPT_TIMEZONE_NAME = 'CST'       # Timezone abbreviation displayed on receipt
+
 # Logging configuration
 TX_LOG_FILE = 'last_tx_log.log'     # Transaction log file (overwritten each run to save disk on Pi)

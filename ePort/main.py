@@ -10,6 +10,7 @@ import serial
 import logging
 import traceback
 from typing import Optional
+from datetime import datetime, timezone, timedelta
 
 try:
     import RPi.GPIO as GPIO
@@ -48,6 +49,9 @@ from .config import (
     DISPLAY_PORT,
     RECEIPT_DISPLAY_TIMEOUT,
     ERROR_DISPLAY_TIMEOUT,
+    SALES_TAX_RATE,
+    RECEIPT_TIMEZONE_OFFSET,
+    RECEIPT_TIMEZONE_NAME,
     TX_LOG_FILE
 )
 
@@ -779,7 +783,11 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 return
             
             # Get total price
-            total_price = transaction.get_total()
+            subtotal = transaction.get_total()
+            
+            # Calculate sales tax
+            tax_amount = round(subtotal * SALES_TAX_RATE, 2)
+            total_price = round(subtotal + tax_amount, 2)
             
             # Safety check: Prevent charging more than MAX_TRANSACTION_PRICE
             if total_price > MAX_TRANSACTION_PRICE:
@@ -787,6 +795,10 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 machine.reset()
                 transaction_complete = True
                 return
+            
+            # Generate receipt timestamp in configured timezone
+            tz = timezone(timedelta(hours=RECEIPT_TIMEZONE_OFFSET))
+            receipt_time = datetime.now(tz).strftime('%m/%d/%Y %I:%M %p') + ' ' + RECEIPT_TIMEZONE_NAME
             
             # Show receipt IMMEDIATELY so customer gets instant feedback
             if display:
@@ -802,16 +814,23 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 ]
                 display.show_receipt(
                     items=receipt_items,
-                    total=transaction.get_total()
+                    subtotal=subtotal,
+                    tax=tax_amount,
+                    total=total_price,
+                    timestamp=receipt_time
                 )
             
             # Display itemized transaction to customer (terminal)
             print("\n" + "=" * 40)
             print(transaction.get_summary())
+            if SALES_TAX_RATE > 0:
+                print(f"TAX ({SALES_TAX_RATE * 100:.2g}%): ${tax_amount:.2f}")
+            print(f"TOTAL: ${total_price:.2f}")
+            print(f"Time: {receipt_time}")
             print("=" * 40)
             
-            # Convert to cents for payment processor
-            price_cents = transaction.get_total_cents()
+            # Convert to cents for payment processor (includes tax)
+            price_cents = int(round(total_price * 100))
             
             # Send transaction result to ePort (serial communication happens while receipt is visible)
             description = transaction.get_eport_description()
@@ -824,7 +843,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             ):
                 raise PaymentProtocolError("Failed to send transaction result")
             
-            logger.info(f"Transaction complete: {transaction.get_compact_summary()}")
+            logger.info(f"Transaction complete: {transaction.get_compact_summary()} (tax: ${tax_amount:.2f}, total: ${total_price:.2f})")
             
             # Try to get transaction ID
             try:
