@@ -112,7 +112,7 @@ ERROR_DISPLAY_TIMEOUT = 10          # Seconds to show error before reset attempt
 
 # Sales tax configuration
 STATE_TAX_RATE = 0.04225                # State sales tax rate as decimal (e.g., 0.04225 for Missouri 4.225%)
-LOCAL_TAX_RATE = 0.02125                # Local/city sales tax rate as decimal (e.g., 0.02125 for Springfield 2.125%)
+LOCAL_TAX_RATE = 0.03875                # Local/city sales tax rate as decimal (e.g., 0.02125 for Springfield 2.125%)
 SALES_TAX_RATE = STATE_TAX_RATE + LOCAL_TAX_RATE  # Combined tax rate applied to transactions
 
 # Receipt timezone (Central Standard Time = UTC-6)
