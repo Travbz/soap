@@ -14,18 +14,6 @@ echo "2. Configure customer display"
 echo "3. Setup systemd service"
 echo "4. Configure autostart"
 echo ""
-read -p "Press Enter to begin setup..."
-echo ""
-
-# Check if running on Raspberry Pi
-if [ ! -f /etc/rpi-issue ]; then
-    echo "⚠️  Warning: This doesn't appear to be a Raspberry Pi"
-    read -p "Continue anyway? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
-fi
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -57,9 +45,17 @@ echo ""
 # Step 2: Install Display Dependencies
 # ============================================
 echo "Step 2/6: Installing display system (Chromium)..."
-sudo apt update
-sudo apt install -y chromium-browser unclutter
-echo "✓ Chromium browser installed"
+if command -v chromium-browser &> /dev/null; then
+    echo "✓ Chromium already installed ($(chromium-browser --version 2>/dev/null || echo 'unknown version'))"
+else
+    sudo apt update
+    sudo apt install -y chromium-browser
+fi
+if ! command -v unclutter &> /dev/null; then
+    sudo apt install -y unclutter
+else
+    echo "✓ unclutter already installed"
+fi
 echo ""
 
 # ============================================
