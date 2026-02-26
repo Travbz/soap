@@ -6,16 +6,17 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/vending-machine
+WorkingDirectory=/home/pi/soap
 Environment="PATH=/usr/bin:/usr/local/bin"
 ExecStart=/usr/bin/python3 -m ePort.main
 Restart=always
-RestartSec=10
+RestartSec=5
+
+# Give time for hardware to initialize on boot
+ExecStartPre=/bin/sleep 3
+
 StandardOutput=journal
 StandardError=journal
-
-# Security - limit resources if needed
-# MemoryLimit=100M
 
 [Install]
 WantedBy=multi-user.target

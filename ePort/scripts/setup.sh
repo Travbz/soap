@@ -82,7 +82,7 @@ fi
 
 # Create new autostart file with kiosk configuration
 echo "Creating kiosk mode configuration..."
-cat > "$USER_AUTOSTART_FILE" << 'EOF'
+cat > "$USER_AUTOSTART_FILE" << EOF
 @lxpanel --profile LXDE-pi
 @pcmanfm --desktop --profile LXDE-pi
 
@@ -94,8 +94,8 @@ cat > "$USER_AUTOSTART_FILE" << 'EOF'
 # Hide mouse cursor immediately
 @unclutter -idle 0
 
-# Launch Chromium in full-screen kiosk mode (NO browser UI visible)
-@chromium-browser --kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 --disable-features=TranslateUI http://localhost:5000
+# Launch kiosk script (waits for display server then opens Chromium full-screen)
+@bash $PROJECT_ROOT/scripts/kiosk.sh
 EOF
 
 echo "✓ Kiosk mode autostart configured"
@@ -110,11 +110,12 @@ echo ""
 echo "Step 4/6: Installing vending machine service..."
 
 # Update service file with correct path
-SERVICE_FILE="$SCRIPT_DIR/vending-machine.service"
+SERVICE_FILE="$PROJECT_ROOT/vending-machine.service"
 TEMP_SERVICE="/tmp/vending-machine.service.tmp"
 
-# Replace WorkingDirectory with actual path
-sed "s|WorkingDirectory=.*|WorkingDirectory=$PROJECT_ROOT|g" "$SERVICE_FILE" > "$TEMP_SERVICE"
+# WorkingDirectory must be the PARENT of ePort/ so `python3 -m ePort.main` resolves
+WORKSPACE_ROOT="$( cd "$PROJECT_ROOT/.." && pwd )"
+sed "s|WorkingDirectory=.*|WorkingDirectory=$WORKSPACE_ROOT|g" "$SERVICE_FILE" > "$TEMP_SERVICE"
 
 # Copy to systemd
 sudo cp "$TEMP_SERVICE" /etc/systemd/system/vending-machine.service
