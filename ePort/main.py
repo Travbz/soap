@@ -798,7 +798,8 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             
             # Calculate ePort charge first so receipt matches exactly what card is charged
             # ePort multiplies quantity × price, so we send per-item price
-            item_count = transaction.get_item_count()
+            # Use unique product count (not dispense events — switching A→B→A→B = 2 products, not 4)
+            item_count = len(transaction.get_product_totals())
             raw_total_cents = int(round((subtotal + subtotal * SALES_TAX_RATE) * 100))
             per_item_cents = round(raw_total_cents / item_count)
             # Actual charge is what the ePort will compute: quantity × per-item price
