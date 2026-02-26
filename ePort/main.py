@@ -656,6 +656,9 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
     # Guard against on_done_button being called twice (GPIO interrupt + inactivity timeout race)
     done_processing = False
     
+    # Track when receipt was shown so post-loop sleep matches JS countdown
+    receipt_shown_time = 0.0
+    
     def on_flowmeter_pulse(ounces: float, price: float):
         """
         Callback for flowmeter pulses - tracks current product dispensing
@@ -760,7 +763,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         Records final product, validates transaction, sends itemized result to payment processor.
         Guarded against re-entry (GPIO interrupt thread + inactivity timeout race).
         """
-        nonlocal transaction_complete, current_product_ounces, done_processing
+        nonlocal transaction_complete, current_product_ounces, done_processing, receipt_shown_time
         
         # Prevent double-execution (GPIO interrupt can race with inactivity timeout)
         if done_processing or transaction_complete:
@@ -830,6 +833,7 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                     total=total_price,
                     timestamp=receipt_time
                 )
+                receipt_shown_time = time.time()
             
             # Display itemized transaction to customer (terminal)
             print("\n" + "=" * 40)
@@ -1042,11 +1046,14 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
         logger.error(traceback.format_exc())
         raise MachineHardwareError(f"Dispensing loop error: {e}")
     
-    # After loop exits, wait for receipt countdown then reset display
+    # After loop exits, wait for JS receipt countdown to finish then reset display
     if display:
-        if transaction_complete and not transaction.is_empty():
-            # Wait for JS receipt countdown to finish before clearing
-            time.sleep(RECEIPT_DISPLAY_TIMEOUT)
+        if transaction_complete and not transaction.is_empty() and receipt_shown_time > 0:
+            # Sleep only the remaining time so product bar clears in sync with JS countdown
+            elapsed = time.time() - receipt_shown_time
+            remaining = max(0, RECEIPT_DISPLAY_TIMEOUT - elapsed)
+            if remaining > 0:
+                time.sleep(remaining)
         display.change_state('idle')
     
     if transaction_complete and not transaction.is_empty():
