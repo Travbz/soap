@@ -670,32 +670,22 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             if product:
                 logger.debug(f"{product.name}: {ounces:.3f} {product.unit} - ${price:.2f}")
                 
-                # Update display with accumulated total for this product
-                # Add current segment to any previously recorded amounts
+                # Update display - ounces/price from machine already include accumulated values
+                # (machine.py restores per-product pulse counts on product switch)
                 if display:
-                    display_qty = ounces
-                    display_price = price
-                    product_totals = transaction.get_product_totals()
-                    prev_qty = 0.0
-                    prev_price = 0.0
-                    if product.id in product_totals:
-                        prev_qty = product_totals[product.id]['quantity']
-                        prev_price = product_totals[product.id]['price']
-                        display_qty += prev_qty
-                        display_price += prev_price
-                    logger.info(f"[DISPLAY] {product.name} segment={ounces:.2f}oz/${price:.2f} prev={prev_qty:.2f}oz/${prev_price:.2f} shown={round(display_qty, 2)}oz/${round(display_price, 2)}")
+                    logger.info(f"[DISPLAY] {product.name} ounces={ounces:.2f}oz price=${price:.2f}")
                     display.update_product(
                         product_id=product.id,
                         product_name=product.name,
-                        quantity=round(display_qty, 2),
+                        quantity=ounces,
                         unit=product.unit,
-                        price=round(display_price, 2),
+                        price=price,
                         is_active=motor_is_running
                     )
                     
-                    # Update grand total (includes all previously recorded products)
-                    total = transaction.get_total() + price
-                    logger.info(f"[DISPLAY] Grand total: tx_total=${transaction.get_total():.2f} + segment=${price:.2f} = ${total:.2f}")
+                    # Grand total from machine's per-product price map (already updated for current product)
+                    total = sum(machine.product_price_map.values())
+                    logger.info(f"[DISPLAY] Grand total: ${total:.2f} (from {len(machine.product_price_map)} products)")
                     display.update_total(total)
             
             last_activity_time = time.time()
@@ -728,20 +718,19 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 logger.info(f"Recorded: {prev_product.name} {current_product_ounces:.2f} {prev_product.unit} - ${price:.2f}")
                 logger.info(f"[SWITCH] Transaction items after recording: {transaction.get_item_count()} items, tx_total=${transaction.get_total():.2f}")
                 
-                # Update display to show accumulated total for previous product (not active)
+                # Mark previous product as inactive on display (values already shown from flowmeter)
                 if display:
-                    product_totals = transaction.get_product_totals()
-                    if prev_product.id in product_totals:
-                        totals = product_totals[prev_product.id]
-                        logger.info(f"[SWITCH] Prev product {prev_product.name} accumulated: {totals['quantity']:.2f}oz ${totals['price']:.2f}")
-                        display.update_product(
-                            product_id=prev_product.id,
-                            product_name=totals['product_name'],
-                            quantity=totals['quantity'],
-                            unit=totals['unit'],
-                            price=totals['price'],
-                            is_active=False
-                        )
+                    prev_oz = machine.product_ounces_map.get(prev_product.id, current_product_ounces)
+                    prev_price = machine.product_price_map.get(prev_product.id, price)
+                    logger.info(f"[SWITCH] Prev product {prev_product.name} accumulated: {prev_oz:.2f}oz ${prev_price:.2f}")
+                    display.update_product(
+                        product_id=prev_product.id,
+                        product_name=prev_product.name,
+                        quantity=prev_oz,
+                        unit=prev_product.unit,
+                        price=prev_price,
+                        is_active=False
+                    )
             
             # Switch to new product
             logger.info(f"Switching to: {product.name}")
@@ -750,30 +739,22 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             last_product_switch_time = time.time()
             last_button_press_time = time.time()
             
-            # Update display for new product - show accumulated total if returning to it
+            # Update display for new product - machine will restore its accumulated pulse count
             if display:
-                product_totals = transaction.get_product_totals()
-                if product.id in product_totals:
-                    totals = product_totals[product.id]
-                    logger.info(f"[SWITCH] New product {product.name} has prev accumulated: {totals['quantity']:.2f}oz ${totals['price']:.2f}")
-                    display.update_product(
-                        product_id=product.id,
-                        product_name=product.name,
-                        quantity=totals['quantity'],
-                        unit=product.unit,
-                        price=totals['price'],
-                        is_active=True
-                    )
+                new_oz = machine.product_ounces_map.get(product.id, 0.0)
+                new_price = machine.product_price_map.get(product.id, 0.0)
+                if new_oz > 0:
+                    logger.info(f"[SWITCH] New product {product.name} has prev accumulated: {new_oz:.2f}oz ${new_price:.2f}")
                 else:
                     logger.info(f"[SWITCH] New product {product.name} starting fresh at 0")
-                    display.update_product(
-                        product_id=product.id,
-                        product_name=product.name,
-                        quantity=0.0,
-                        unit=product.unit,
-                        price=0.0,
-                        is_active=True
-                    )
+                display.update_product(
+                    product_id=product.id,
+                    product_name=product.name,
+                    quantity=new_oz,
+                    unit=product.unit,
+                    price=new_price,
+                    is_active=True
+                )
             
         except Exception as e:
             logger.error(f"Error in product switch callback: {e}")
