@@ -540,6 +540,10 @@ def main():
                         except Exception as reset_error:
                             logger.error(f"Error resetting machine: {reset_error}")
                         time.sleep(RETRY_DELAY)
+                    
+                    # Safety net: reset ePort after dispensing to ensure clean state
+                    # Prevents stale status 9 from re-entering handle_dispensing
+                    safe_reset(payment)
                 
                 # Status 3+data: Declined
                 elif status.startswith(b'3'):
@@ -848,7 +852,10 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
                 item_id="1",
                 description=description
             ):
-                logger.error("Failed to send transaction result to ePort")
+                # Serial comm failed - reset ePort to cancel stale authorization
+                # Without this, ePort stays at status 9 and main loop re-enters dispensing forever
+                logger.error("Failed to send transaction result - resetting ePort to cancel authorization")
+                safe_reset(payment)
             
             logger.info(f"Transaction complete: {transaction.get_compact_summary()} (tax: ${tax_amount:.2f}, total: ${total_price:.2f})")
             
