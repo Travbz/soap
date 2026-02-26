@@ -111,7 +111,7 @@ RECEIPT_DISPLAY_TIMEOUT = 10        # Seconds to show receipt before returning t
 ERROR_DISPLAY_TIMEOUT = 10          # Seconds to show error before reset attempt
 
 # Sales tax configuration
-SALES_TAX_RATE = 0.0                # Sales tax rate as decimal (e.g., 0.08 for 8%). Set to 0.0 if no tax applies.
+SALES_TAX_RATE = .06                # Sales tax rate as decimal (e.g., 0.08 for 8%). Set to 0.0 if no tax applies.
 
 # Receipt timezone (Central Standard Time = UTC-6)
 RECEIPT_TIMEZONE_OFFSET = -6        # UTC offset in hours for receipt timestamps
