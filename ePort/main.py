@@ -796,9 +796,15 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             # Get total price
             subtotal = transaction.get_total()
             
-            # Calculate sales tax
-            tax_amount = round(subtotal * SALES_TAX_RATE, 2)
-            total_price = round(subtotal + tax_amount, 2)
+            # Calculate ePort charge first so receipt matches exactly what card is charged
+            # ePort multiplies quantity × price, so we send per-item price
+            item_count = transaction.get_item_count()
+            raw_total_cents = int(round((subtotal + subtotal * SALES_TAX_RATE) * 100))
+            per_item_cents = round(raw_total_cents / item_count)
+            # Actual charge is what the ePort will compute: quantity × per-item price
+            actual_charge_cents = item_count * per_item_cents
+            total_price = actual_charge_cents / 100.0
+            tax_amount = round(total_price - subtotal, 2)
             
             # Safety check: Prevent charging more than MAX_TRANSACTION_PRICE
             if total_price > MAX_TRANSACTION_PRICE:
@@ -840,15 +846,12 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             print(f"Time: {receipt_time}")
             print("=" * 40)
             
-            # Convert to cents for payment processor (includes tax)
-            price_cents = int(round(total_price * 100))
-            
             # Send transaction result to ePort (serial communication happens while receipt is visible)
             description = transaction.get_eport_description()
             if not safe_transaction_result(
                 payment=payment,
-                quantity=1,  # Always 1 — price_cents is already the full transaction total
-                price_cents=price_cents,
+                quantity=item_count,
+                price_cents=per_item_cents,
                 item_id="1",
                 description=description
             ):
