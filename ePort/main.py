@@ -670,16 +670,21 @@ def handle_dispensing(machine: MachineController, payment: EPortProtocol,
             if product:
                 logger.debug(f"{product.name}: {ounces:.3f} {product.unit} - ${price:.2f}")
                 
-                # Update display with current segment only (not accumulated)
-                # Each product starts fresh at 0, accumulated totals only shown on receipt
-                # Only mark as active if motor is actually running (prevents flicker)
+                # Update display with accumulated total for this product
+                # Add current segment to any previously recorded amounts
                 if display:
+                    display_qty = ounces
+                    display_price = price
+                    product_totals = transaction.get_product_totals()
+                    if product.id in product_totals:
+                        display_qty += product_totals[product.id]['quantity']
+                        display_price += product_totals[product.id]['price']
                     display.update_product(
                         product_id=product.id,
                         product_name=product.name,
-                        quantity=ounces,
+                        quantity=round(display_qty, 2),
                         unit=product.unit,
-                        price=price,
+                        price=round(display_price, 2),
                         is_active=motor_is_running
                     )
                     
