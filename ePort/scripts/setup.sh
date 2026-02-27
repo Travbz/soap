@@ -45,11 +45,16 @@ echo ""
 # Step 2: Install Display Dependencies
 # ============================================
 echo "Step 2/6: Installing display system (Chromium)..."
-if command -v chromium-browser &> /dev/null; then
-    echo "✓ Chromium already installed ($(chromium-browser --version 2>/dev/null || echo 'unknown version'))"
+if command -v chromium-browser &> /dev/null || command -v chromium &> /dev/null; then
+    echo "✓ Chromium already installed"
 else
     sudo apt update
-    sudo apt install -y chromium-browser
+    # Newer Pi OS (Trixie+) uses 'chromium', older uses 'chromium-browser'
+    if apt-cache show chromium &> /dev/null; then
+        sudo apt install -y chromium
+    else
+        sudo apt install -y chromium-browser
+    fi
 fi
 if ! command -v unclutter &> /dev/null; then
     sudo apt install -y unclutter

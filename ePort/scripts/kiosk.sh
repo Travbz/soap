@@ -21,8 +21,15 @@ if [ $elapsed -ge $MAX_WAIT ]; then
     echo "[kiosk] Server not ready after ${MAX_WAIT}s - launching browser anyway"
 fi
 
+# Detect chromium binary name (newer OS uses 'chromium', older uses 'chromium-browser')
+if command -v chromium-browser &> /dev/null; then
+    CHROMIUM=chromium-browser
+else
+    CHROMIUM=chromium
+fi
+
 # Launch Chromium in full-screen kiosk mode
-exec chromium-browser \
+exec $CHROMIUM \
     --kiosk \
     --noerrdialogs \
     --disable-infobars \
