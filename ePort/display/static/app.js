@@ -1,4 +1,5 @@
 // WebSocket connection for real-time updates
+console.log('[FE] socket.io loaded, connecting...');
 const socket = io();
 
 // Product data cache - dynamically populated
@@ -8,10 +9,16 @@ let productList = [];
 // Current state
 let currentState = 'idle';
 let countdownInterval = null;
+const startTime = Date.now();
+
+function feLog(msg) {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log('[FE +' + elapsed + 's] ' + msg);
+}
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Display client initialized');
+    feLog('DOM ready, showing idle screen');
     showScreen('idle');
 });
 
@@ -25,8 +32,11 @@ function showScreen(screenName) {
     const targetScreen = document.getElementById(`${screenName}-screen`);
     if (targetScreen) {
         targetScreen.classList.remove('hidden');
+        const prevState = currentState;
         currentState = screenName;
-        console.log('Screen changed to:', screenName);
+        feLog('Screen: ' + prevState + ' -> ' + screenName);
+    } else {
+        feLog('ERROR: Screen not found: ' + screenName + '-screen');
     }
 }
 
@@ -68,7 +78,7 @@ function buildProductBar(containerId, showTotal = true) {
 
 // WebSocket event: Load products (sent by server)
 socket.on('load_products', (data) => {
-    console.log('Products loaded:', data);
+    feLog('Products loaded: ' + data.products.length + ' products');
     productList = data.products;
     
     // Initialize product data cache
@@ -128,7 +138,7 @@ function buildButtonArrowsWaiting() {
 
 // WebSocket event: Change state
 socket.on('change_state', (data) => {
-    console.log('State change:', data.state);
+    feLog('WS state change received: ' + data.state);
     showScreen(data.state);
     
     // Reset product data only when starting new transaction (idle)
@@ -313,13 +323,20 @@ function startCountdown(seconds) {
 
 // Connection status
 socket.on('connect', () => {
-    console.log('Connected to display server');
-    // Reset to idle and request products on connect
+    feLog('CONNECTED to display server (socket.id=' + socket.id + ')');
     resetProductData();
     showScreen('idle');
     socket.emit('request_products');
 });
 
-socket.on('disconnect', () => {
-    console.log('Disconnected from display server');
+socket.on('disconnect', (reason) => {
+    feLog('DISCONNECTED from display server (reason=' + reason + ')');
+});
+
+socket.on('connect_error', (err) => {
+    feLog('CONNECTION ERROR: ' + err.message);
+});
+
+socket.on('reconnect_attempt', (attempt) => {
+    feLog('Reconnect attempt #' + attempt);
 });
