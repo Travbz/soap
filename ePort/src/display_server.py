@@ -33,7 +33,9 @@ class DisplayServer:
         self.app = Flask(__name__, 
                         template_folder='../display/templates',
                         static_folder='../display/static')
-        self.socketio = SocketIO(self.app, cors_allowed_origins="*")
+        # Use threading mode - eventlet has compatibility issues with Python 3.11+
+        self.socketio = SocketIO(self.app, cors_allowed_origins="*", async_mode='threading',
+                                 ping_timeout=60, ping_interval=25)
         self.host = host
         self.port = port
         self.current_state = "idle"
