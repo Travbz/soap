@@ -105,9 +105,10 @@ class DisplayServer:
         Args:
             state: State name (idle, authorizing, ready, dispensing, complete, declined, error)
         """
+        prev_state = self.current_state
         self.current_state = state
         self.socketio.emit('change_state', {'state': state})
-        logger.debug(f"Display state changed to: {state}")
+        logger.info(f"[DISPLAY] State transition: {prev_state} -> {state}")
     
     def update_product(self, product_id: str, product_name: str, 
                       quantity: float, unit: str, price: float,
