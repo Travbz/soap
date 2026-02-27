@@ -21,7 +21,10 @@ if [ $elapsed -ge $MAX_WAIT ]; then
     echo "[kiosk] Server not ready after ${MAX_WAIT}s - launching browser anyway"
 fi
 
-# Launch Chromium in full-screen kiosk mode
+# Clean any stale Chromium profile (prevents corruption from power loss)
+rm -rf /tmp/chromium-kiosk
+
+# Launch Chromium in full-screen kiosk mode with temp profile
 exec chromium-browser \
     --kiosk \
     --noerrdialogs \
@@ -31,4 +34,5 @@ exec chromium-browser \
     --disable-translate \
     --check-for-update-interval=31536000 \
     --disable-features=TranslateUI \
+    --user-data-dir=/tmp/chromium-kiosk \
     "$URL"
