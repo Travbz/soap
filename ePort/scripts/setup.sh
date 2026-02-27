@@ -27,6 +27,9 @@ echo ""
 # ============================================
 echo "Step 1/6: Installing Python dependencies..."
 
+# Remove old RPi.GPIO if present (conflicts with rpi-lgpio)
+pip3 uninstall -y RPi.GPIO 2>/dev/null || true
+
 # Use requirements.txt for consistent versioning
 if [ -f "$PROJECT_ROOT/requirements.txt" ]; then
     echo "Installing from requirements.txt..."
@@ -34,7 +37,7 @@ if [ -f "$PROJECT_ROOT/requirements.txt" ]; then
 else
     # Fallback: install with pinned versions
     echo "requirements.txt not found, installing with pinned versions..."
-    pip3 install --user --break-system-packages RPi.GPIO>=0.7.0 pyserial>=3.5
+    pip3 install --user --break-system-packages rpi-lgpio>=0.4 pyserial>=3.5
     pip3 install --user --break-system-packages 'flask>=2.0.0,<3.0.0' python-engineio==4.9.0 python-socketio==5.11.0 flask-socketio==5.3.6
 fi
 

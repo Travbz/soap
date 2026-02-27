@@ -2,7 +2,7 @@
 # Install with: pip3 install -r requirements.txt
 
 # Hardware libraries (required on Raspberry Pi)
-RPi.GPIO>=0.7.0  # GPIO control for Raspberry Pi
+rpi-lgpio>=0.4   # GPIO control (drop-in RPi.GPIO replacement for newer Pi OS)
 pyserial>=3.5    # Serial port communication
 
 # Customer display system (required for production)
