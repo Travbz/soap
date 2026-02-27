@@ -105,7 +105,7 @@ WAITING_SCREEN_TIMEOUT = 0.5       # Seconds of no button press to show "Press D
 
 # Display server configuration
 DISPLAY_ENABLED = True              # Required for production - only set to False for development/testing
-DISPLAY_HOST = 'localhost'          # Display server host
+DISPLAY_HOST = '0.0.0.0'           # Display server host (0.0.0.0 = all interfaces, for remote debug)
 DISPLAY_PORT = 5000                 # Display server port
 RECEIPT_DISPLAY_TIMEOUT = 10        # Seconds to show receipt before returning to idle
 ERROR_DISPLAY_TIMEOUT = 10          # Seconds to show error before reset attempt
