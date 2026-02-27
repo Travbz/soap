@@ -4,8 +4,11 @@ Handles GPIO, motors, sensors, and dispensing logic
 """
 
 import time
+import logging
 from typing import Callable, Optional, Tuple, Dict, List
 from ..config import DONE_BUTTON_SOFTWARE_DEBOUNCE_DELAY, DONE_BUTTON_HARDWARE_DEBOUNCE_MS
+
+logger = logging.getLogger(__name__)
 
 # Import Product class for type hints (avoid circular import)
 try:
@@ -356,11 +359,16 @@ class MachineController:
             pass
         
         # Setup interrupt handler for this product's flowmeter
-        self.gpio.add_event_detect(
-            product.flowmeter_pin,
-            self.gpio.RISING,  # Trigger on rising edge (LOW → HIGH transition)
-            callback=self._on_flowmeter_pulse
-        )
+        logger.info(f"[GPIO] Setting up flowmeter edge detect on pin {product.flowmeter_pin} for {product.name}")
+        try:
+            self.gpio.add_event_detect(
+                product.flowmeter_pin,
+                self.gpio.RISING,  # Trigger on rising edge (LOW → HIGH transition)
+                callback=self._on_flowmeter_pulse
+            )
+            logger.info(f"[GPIO] Edge detect OK on pin {product.flowmeter_pin}")
+        except Exception as e:
+            logger.error(f"[GPIO] FAILED to add edge detect on pin {product.flowmeter_pin}: {e}")
     
     def reset(self):
         """
