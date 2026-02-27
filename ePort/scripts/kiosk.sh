@@ -35,4 +35,6 @@ exec chromium-browser \
     --check-for-update-interval=31536000 \
     --disable-features=TranslateUI \
     --user-data-dir=/tmp/chromium-kiosk \
+    --disable-gpu \
+    --disable-software-rasterizer \
     "$URL"
