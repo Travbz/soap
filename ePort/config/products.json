@@ -18,7 +18,7 @@
       "price_per_unit": 1.50,
       "unit": "oz",
       "motor_pin": 18,
-      "flowmeter_pin": 25,
+      "flowmeter_pin": 24,
       "button_pin": 23,
       "pulses_per_unit": 5.2
     },
