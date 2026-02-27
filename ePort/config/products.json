@@ -2,9 +2,9 @@
   "products": [
     {
       "id": "soap_hand",
-      "name": "Hand Soap",
+      "name": "Hand",
       "description": "Gentle hand wash soap",
-      "price_per_unit": 0.15,
+      "price_per_unit": 1.50,
       "unit": "oz",
       "motor_pin": 22,
       "flowmeter_pin": 5,
@@ -12,10 +12,10 @@
       "pulses_per_unit": 5.4
     },
     {
-      "id": "soap_dish",
-      "name": "Dish Soap",
+      "id": "soap_laundry",
+      "name": "Laundry",
       "description": "Powerful dish cleaning soap",
-      "price_per_unit": 0.12,
+      "price_per_unit": 1.50,
       "unit": "oz",
       "motor_pin": 18,
       "flowmeter_pin": 25,
@@ -23,10 +23,10 @@
       "pulses_per_unit": 5.2
     },
     {
-      "id": "soap_laundry",
-      "name": "Laundry Detergent",
+      "id": "soap_dish",
+      "name": "Dish",
       "description": "Powerful laundry detergent",
-      "price_per_unit": 0.10,
+      "price_per_unit": 1.50,
       "unit": "oz",
       "motor_pin": 20,
       "flowmeter_pin": 21,
