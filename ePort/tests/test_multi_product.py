@@ -38,6 +38,44 @@ class TestProduct(unittest.TestCase):
         self.assertEqual(product.button_pin, 4)
         self.assertEqual(product.pulses_per_unit, 5.4)
         self.assertEqual(product.description, "Gentle hand wash")
+        self.assertEqual(product.status, "AVAILABLE")
+        self.assertEqual(product.message, "")
+        self.assertFalse(product.is_out_of_order())
+
+    def test_product_out_of_order_status(self):
+        """Test OOO products are detected correctly"""
+        product = Product(
+            product_id="soap_hand",
+            name="Hand Soap",
+            price_per_unit=0.15,
+            unit="oz",
+            motor_pin=17,
+            flowmeter_pin=24,
+            button_pin=4,
+            pulses_per_unit=5.4,
+            status="OOO",
+            message="NOZZLE ISSUE"
+        )
+
+        self.assertTrue(product.is_out_of_order())
+        self.assertEqual(product.message, "NOZZLE ISSUE")
+
+    def test_product_out_of_order_message_only(self):
+        """Test message-only products are treated as out of order"""
+        product = Product(
+            product_id="soap_hand",
+            name="Hand Soap",
+            price_per_unit=0.15,
+            unit="oz",
+            motor_pin=17,
+            flowmeter_pin=24,
+            button_pin=4,
+            pulses_per_unit=5.4,
+            status="AVAILABLE",
+            message="TEMPORARILY OFFLINE"
+        )
+
+        self.assertTrue(product.is_out_of_order())
     
     def test_product_calculate_price(self):
         """Test price calculation"""
@@ -140,6 +178,29 @@ class TestProductManager(unittest.TestCase):
         self.assertEqual(manager.get_product_count(), 1)
         product = manager.get_product("soap_hand")
         self.assertEqual(product.name, "Hand Soap")
+        self.assertEqual(product.status, "AVAILABLE")
+        self.assertEqual(product.message, "")
+
+    def test_load_out_of_order_product_fields(self):
+        """Test loading optional status and message fields"""
+        self.create_config([{
+            "id": "soap_hand",
+            "name": "Hand Soap",
+            "status": "OOO",
+            "message": "PUMP OFFLINE",
+            "price_per_unit": 0.15,
+            "unit": "oz",
+            "motor_pin": 17,
+            "flowmeter_pin": 24,
+            "button_pin": 4,
+            "pulses_per_unit": 5.4
+        }])
+
+        manager = ProductManager(self.config_path)
+        product = manager.get_product("soap_hand")
+        self.assertEqual(product.status, "OOO")
+        self.assertEqual(product.message, "PUMP OFFLINE")
+        self.assertTrue(product.is_out_of_order())
     
     def test_load_multiple_products(self):
         """Test loading multiple products"""

@@ -161,6 +161,23 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
     font-weight: bold;
 }
 
+.product-message {
+    background: #5f6770;
+    color: #f1f1f1;
+    margin: 10px;
+    border-radius: 15px;
+    font-size: 34px;
+    font-weight: bold;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: 20px;
+    text-transform: uppercase;
+    text-align: center;
+}
+
 .product-column.active {
     background: #8FD14F;
 }
@@ -189,6 +206,17 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
 .product-column:not(.active) .product-price {
     background: #8A9BAD;
     color: rgba(0, 0, 0, 0.6);
+}
+
+.product-column.out-of-order {
+    background: #6d6d6d;
+    opacity: 0.75;
+    pointer-events: none;
+}
+
+.product-column.out-of-order .product-name {
+    background: #4b4b4b;
+    color: #e8e8e8;
 }
 
 /* Purchased state - product has been dispensed but not currently active */
@@ -361,6 +389,10 @@ body:has(#complete-screen:not(.hidden)) #product-bar {
     justify-content: center;
     align-items: center;
     line-height: 1;
+}
+
+.button-arrows span.disabled {
+    color: #8A9BAD;
 }
 
 /* STATE 4: Dispensing */

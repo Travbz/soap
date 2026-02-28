@@ -395,7 +395,9 @@ def main():
                         'id': p.id,
                         'name': p.name,
                         'unit': p.unit,
-                        'price_per_unit': p.price_per_unit
+                        'price_per_unit': p.price_per_unit,
+                        'status': p.status,
+                        'message': p.message
                     }
                     for p in products
                 ]

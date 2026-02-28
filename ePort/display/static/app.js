@@ -42,14 +42,23 @@ function buildProductBar(containerId, showTotal = true) {
         const col = document.createElement('div');
         col.className = 'product-column';
         col.id = `${product.id}-column`;
+        const outOfOrder = isProductOutOfOrder(product);
         
         const data = productData[product.id] || { qty: 0, price: 0 };
-        
-        col.innerHTML = `
-            <div class="product-name">${product.name}</div>
-            <div class="product-qty" id="${product.id}-qty">${data.qty.toFixed(1)}${product.unit}</div>
-            <div class="product-price" id="${product.id}-price">$${data.price.toFixed(2)}</div>
-        `;
+
+        if (outOfOrder) {
+            col.classList.add('out-of-order');
+            col.innerHTML = `
+                <div class="product-name">${product.name}</div>
+                <div class="product-message">${getProductStatusMessage(product)}</div>
+            `;
+        } else {
+            col.innerHTML = `
+                <div class="product-name">${product.name}</div>
+                <div class="product-qty" id="${product.id}-qty">${data.qty.toFixed(1)}${product.unit}</div>
+                <div class="product-price" id="${product.id}-price">$${data.price.toFixed(2)}</div>
+            `;
+        }
         
         container.appendChild(col);
     });
@@ -64,6 +73,17 @@ function buildProductBar(containerId, showTotal = true) {
         `;
         container.appendChild(totalCol);
     }
+}
+
+function isProductOutOfOrder(product) {
+    const status = String(product.status || '').trim().toUpperCase();
+    const hasMessage = String(product.message || '').trim().length > 0;
+    return status === 'OOO' || hasMessage;
+}
+
+function getProductStatusMessage(product) {
+    const message = String(product.message || '').trim();
+    return message || 'OUT OF ORDER';
 }
 
 // WebSocket event: Load products (sent by server)
@@ -98,9 +118,12 @@ function buildButtonArrows() {
     
     container.style.width = `${productWidthPercent}%`;
     
-    productList.forEach(() => {
+    productList.forEach((product) => {
         const arrow = document.createElement('span');
         arrow.textContent = '▼';
+        if (isProductOutOfOrder(product)) {
+            arrow.classList.add('disabled');
+        }
         container.appendChild(arrow);
     });
 }
@@ -119,9 +142,12 @@ function buildButtonArrowsWaiting() {
     
     container.style.width = `${productWidthPercent}%`;
     
-    productList.forEach(() => {
+    productList.forEach((product) => {
         const arrow = document.createElement('span');
         arrow.textContent = '▼';
+        if (isProductOutOfOrder(product)) {
+            arrow.classList.add('disabled');
+        }
         container.appendChild(arrow);
     });
 }
@@ -167,6 +193,9 @@ socket.on('update_product', (data) => {
     // Highlight active product column only
     const column = document.getElementById(`${product_id}-column`);
     if (column) {
+        if (column.classList.contains('out-of-order')) {
+            return;
+        }
         if (is_active) {
             column.classList.add('active');
         } else {

@@ -45,6 +45,9 @@ Edit `config/products.json`:
     {
       "id": "soap_hand",
       "name": "Hand Soap",
+      "description": "Gentle hand wash soap",
+      "status": "AVAILABLE",
+      "message": "",
       "price_per_unit": 0.15,
       "unit": "oz",
       "motor_pin": 17,
@@ -56,7 +59,30 @@ Edit `config/products.json`:
 }
 ```
 
-Add more products as needed. No duplicate pins or IDs allowed.
+### Product fields and expected input types
+
+- `products` (`array[object]`, required): List of product definitions.
+- `id` (`string`, required): Unique product ID (example: `soap_hand`).
+- `name` (`string`, required): Customer-facing product name.
+- `description` (`string`, optional): Internal or display description.
+- `status` (`string`, optional): Product availability. Use:
+  - `AVAILABLE` for normal operation
+  - `OOO` for out-of-order (disables product tile/button)
+- `message` (`string`, optional): Message shown on out-of-order tile when `status` is `OOO`.
+- `price_per_unit` (`number`, required): Price per unit (example: `0.15`).
+- `unit` (`string`, required): Unit label shown to customer (example: `oz`).
+- `motor_pin` (`integer`, required): GPIO output pin for motor.
+- `flowmeter_pin` (`integer`, required): GPIO input pin for flowmeter sensor.
+- `button_pin` (`integer`, required): GPIO input pin for product selection button.
+- `pulses_per_unit` (`number`, required): Flowmeter calibration value.
+
+### Validation rules
+
+- `id` must be unique across all products.
+- `motor_pin`, `flowmeter_pin`, and `button_pin` must each be unique across all products.
+- `price_per_unit` and `pulses_per_unit` must be greater than `0`.
+- If `status` is omitted, it defaults to `AVAILABLE`.
+- If `message` is omitted, it defaults to an empty string.
 
 ---
 

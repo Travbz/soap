@@ -118,6 +118,9 @@ class MachineController:
         Returns:
             True if product was switched, False if already selected
         """
+        if hasattr(product, 'is_out_of_order') and product.is_out_of_order():
+            return False
+
         if self.current_product == product:
             return False  # Already selected
         
@@ -310,6 +313,8 @@ class MachineController:
             Product whose button is pressed, or None if no button pressed
         """
         for product in self.products:
+            if hasattr(product, 'is_out_of_order') and product.is_out_of_order():
+                continue
             if not self.gpio.input(product.button_pin):  # Inverted - LOW means pressed
                 return product
         return None

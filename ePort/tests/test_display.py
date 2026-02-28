@@ -13,6 +13,8 @@ Manual mode: Use LEFT/RIGHT arrow keys to navigate between states
 import time
 import sys
 from ePort.src.display_server import DisplayServer
+from ePort.src.product_manager import ProductManager
+from ePort.config import PRODUCTS_CONFIG_PATH
 
 try:
     import tty
@@ -25,8 +27,33 @@ except ImportError:
 # Global display server instance
 display = None
 
+def is_out_of_order(product):
+    """Return True if a product is marked out of order."""
+    status_ooo = str(product.get('status', '')).strip().upper() == 'OOO'
+    has_message = bool(str(product.get('message', '')).strip())
+    return status_ooo or has_message
+
+def load_products_for_test():
+    """Load products from real config to avoid hardcoded test data."""
+    manager = ProductManager(PRODUCTS_CONFIG_PATH)
+    return [
+        {
+            'id': p.id,
+            'name': p.name,
+            'unit': p.unit,
+            'price_per_unit': p.price_per_unit,
+            'status': p.status,
+            'message': p.message
+        }
+        for p in manager.list_products()
+    ]
+
 def run_demo():
     """Run demo sequence"""
+    products = list(display.products)
+    available_products = [p for p in products if not is_out_of_order(p)]
+    ooo_products = [p for p in products if is_out_of_order(p)]
+
     print("1. Idle state (swipe card)")
     display.change_state('idle')
     time.sleep(2)
@@ -42,71 +69,52 @@ def run_demo():
     print("4. Dispensing - live counters")
     display.change_state('dispensing')
     time.sleep(1)
-    
-    # Simulate dispensing hand soap
-    print("   Dispensing Hand Soap...")
-    for i in range(1, 8):
-        qty = i * 1.2
-        price = qty * 0.15
+
+    running_total = 0.0
+
+    # Simulate dispensing on available products loaded from real config
+    for index, product in enumerate(available_products[:2]):
+        print("   Dispensing {}...".format(product['name']))
+        step_ounces = 1.2 + (0.3 * index)
+        for i in range(1, 5):
+            qty = i * step_ounces
+            price = round(qty * product['price_per_unit'], 2)
+            display.update_product(
+                product_id=product['id'],
+                product_name=product['name'],
+                quantity=qty,
+                unit=product['unit'],
+                price=price,
+                is_active=True
+            )
+            display.update_total(running_total + price)
+            time.sleep(0.5)
+
+        running_total = round(running_total + price, 2)
         display.update_product(
-            product_id='soap_hand',
-            product_name='Hand Soap',
+            product_id=product['id'],
+            product_name=product['name'],
             quantity=qty,
-            unit='oz',
+            unit=product['unit'],
             price=price,
-            is_active=True
+            is_active=False
         )
-        display.update_total(price)
-        time.sleep(0.5)
-    
-    # Switch to dish soap
-    print("   Switching to Dish Soap...")
-    display.update_product(
-        product_id='soap_hand',
-        product_name='Hand Soap',
-        quantity=8.4,
-        unit='oz',
-        price=1.26,
-        is_active=False
-    )
-    
-    for i in range(1, 6):
-        qty = i * 1.5
-        price = qty * 0.12
-        display.update_product(
-            product_id='soap_dish',
-            product_name='Dish Soap',
-            quantity=qty,
-            unit='oz',
-            price=price,
-            is_active=True
-        )
-        display.update_total(1.26 + price)
-        time.sleep(0.5)
-    
-    print("   Switching to Laundry...")
-    display.update_product(
-        product_id='soap_dish',
-        product_name='Dish Soap',
-        quantity=7.5,
-        unit='oz',
-        price=0.90,
-        is_active=False
-    )
-    
-    for i in range(1, 5):
-        qty = i * 2.0
-        price = qty * 0.10
-        display.update_product(
-            product_id='soap_laundry',
-            product_name='Laundry',
-            quantity=qty,
-            unit='oz',
-            price=price,
-            is_active=True
-        )
-        display.update_total(1.26 + 0.90 + price)
-        time.sleep(0.5)
+
+    # Attempt updates on OOO products; should not crash test flow
+    for ooo_product in ooo_products:
+        print("   {} is OOO - attempting update (should not crash)...".format(ooo_product['name']))
+        try:
+            display.update_product(
+                product_id=ooo_product['id'],
+                product_name=ooo_product['name'],
+                quantity=1.0,
+                unit=ooo_product['unit'],
+                price=round(ooo_product['price_per_unit'], 2),
+                is_active=True
+            )
+            display.update_total(running_total)
+        except Exception as e:
+            print("   OOO update failed safely: {}".format(e))
     
     time.sleep(1)
     
@@ -115,13 +123,20 @@ def run_demo():
     time.sleep(3)
     
     print("6. Complete - showing receipt")
+    receipt_items = []
+    for product in available_products[:2]:
+        qty = 4.8
+        price = round(qty * product['price_per_unit'], 2)
+        receipt_items.append({
+            'product_name': product['name'],
+            'quantity': qty,
+            'unit': product['unit'],
+            'price': price
+        })
+    receipt_total = round(sum(item['price'] for item in receipt_items), 2)
     display.show_receipt(
-        items=[
-            {'product_name': 'Hand Soap', 'quantity': 8.4, 'unit': 'oz', 'price': 1.26},
-            {'product_name': 'Dish Soap', 'quantity': 7.5, 'unit': 'oz', 'price': 0.90},
-            {'product_name': 'Laundry', 'quantity': 8.0, 'unit': 'oz', 'price': 0.80}
-        ],
-        total=2.96
+        items=receipt_items,
+        total=receipt_total
     )
     time.sleep(5)
     
@@ -136,11 +151,7 @@ def run_demo():
     print("\nDemo complete! Returning to idle...")
     
     # Reset all products to zero
-    for product in [
-        {'id': 'soap_hand', 'name': 'HAND SOAP', 'unit': 'oz'},
-        {'id': 'soap_dish', 'name': 'DISH SOAP', 'unit': 'oz'},
-        {'id': 'soap_laundry', 'name': 'LAUNDRY GEL', 'unit': 'oz'}
-    ]:
+    for product in products:
         display.update_product(
             product_id=product['id'],
             product_name=product['name'],
@@ -161,11 +172,7 @@ def manual_mode():
     state_names = ['Idle', 'Authorizing', 'Ready', 'Dispensing', 'Waiting', 'Complete', 'Declined', 'Error']
     current_index = 0
     
-    products = [
-        {'id': 'soap_hand', 'name': 'HAND SOAP', 'unit': 'oz', 'price_per_unit': 0.15},
-        {'id': 'soap_dish', 'name': 'DISH SOAP', 'unit': 'oz', 'price_per_unit': 0.12},
-        {'id': 'soap_laundry', 'name': 'LAUNDRY GEL', 'unit': 'oz', 'price_per_unit': 0.10}
-    ]
+    products = list(display.products)
     
     def show_state(index):
         state = states[index]
@@ -254,17 +261,14 @@ def main():
     
     # Check for command line argument
     loop_mode = '--loop' in sys.argv
+    once_mode = '--once' in sys.argv
     
     print("=" * 60)
     print("DISPLAY SERVER TEST")
     print("=" * 60)
     
-    # Mock product data
-    products = [
-        {'id': 'soap_hand', 'name': 'HAND SOAP', 'unit': 'oz', 'price_per_unit': 0.15},
-        {'id': 'soap_dish', 'name': 'DISH SOAP', 'unit': 'oz', 'price_per_unit': 0.12},
-        {'id': 'soap_laundry', 'name': 'LAUNDRY GEL', 'unit': 'oz', 'price_per_unit': 0.10}
-    ]
+    # Load product data from real config
+    products = load_products_for_test()
     
     # Initialize and start server
     display = DisplayServer(host='localhost', port=5000, products=products)
@@ -276,7 +280,12 @@ def main():
     display.change_state('idle')
     time.sleep(1)
     
-    if loop_mode:
+    if once_mode:
+        print("ONCE MODE - Running one demo cycle")
+        run_demo()
+        print("Shutting down...")
+        sys.exit(0)
+    elif loop_mode:
         print("LOOP MODE - Continuously cycling through states")
         print("Press Ctrl+C to stop\n")
         try:

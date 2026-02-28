@@ -24,7 +24,9 @@ class Product:
         flowmeter_pin: int,
         button_pin: int,
         pulses_per_unit: float,
-        description: Optional[str] = None
+        description: Optional[str] = None,
+        status: str = "AVAILABLE",
+        message: str = ""
     ):
         """
         Initialize product configuration
@@ -39,6 +41,8 @@ class Product:
             button_pin: GPIO pin for product selection button
             pulses_per_unit: Flowmeter calibration (pulses per unit)
             description: Optional product description
+            status: Product availability status (e.g. "AVAILABLE", "OOO")
+            message: Optional status message shown to customers
         """
         self.id = product_id
         self.name = name
@@ -49,6 +53,8 @@ class Product:
         self.button_pin = button_pin
         self.pulses_per_unit = pulses_per_unit
         self.description = description or ""
+        self.status = status or "AVAILABLE"
+        self.message = message or ""
         
         # Validate configuration
         self._validate()
@@ -78,6 +84,16 @@ class Product:
         
         if self.pulses_per_unit <= 0:
             raise ValueError(f"Product {self.id}: pulses_per_unit must be positive")
+
+        if not isinstance(self.status, str):
+            raise ValueError(f"Product {self.id}: status must be a string")
+
+        if not isinstance(self.message, str):
+            raise ValueError(f"Product {self.id}: message must be a string")
+
+    def is_out_of_order(self) -> bool:
+        """Return True when product should be disabled for dispensing."""
+        return self.status.strip().upper() == "OOO" or bool(self.message.strip())
     
     def calculate_price(self, quantity: float) -> float:
         """

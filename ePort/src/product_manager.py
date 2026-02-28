@@ -82,7 +82,9 @@ class ProductManager:
                     flowmeter_pin=product_data['flowmeter_pin'],
                     button_pin=product_data['button_pin'],
                     pulses_per_unit=product_data['pulses_per_unit'],
-                    description=product_data.get('description', '')
+                    description=product_data.get('description', ''),
+                    status=product_data.get('status', 'AVAILABLE'),
+                    message=product_data.get('message', '')
                 )
                 
                 # Check for duplicate product ID
