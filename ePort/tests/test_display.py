@@ -12,9 +12,16 @@ Manual mode: Use LEFT/RIGHT arrow keys to navigate between states
 
 import time
 import sys
+import random
+from datetime import datetime, timezone, timedelta
 from ePort.src.display_server import DisplayServer
 from ePort.src.product_manager import ProductManager
-from ePort.config import PRODUCTS_CONFIG_PATH
+from ePort.config import (
+    PRODUCTS_CONFIG_PATH,
+    SALES_TAX_RATE,
+    RECEIPT_TIMEZONE_OFFSET,
+    RECEIPT_TIMEZONE_NAME
+)
 
 try:
     import tty
@@ -48,6 +55,14 @@ def load_products_for_test():
         for p in manager.list_products()
     ]
 
+def build_receipt_totals(subtotal):
+    """Build subtotal/tax/total/timestamp values for receipt payload."""
+    tax = round(subtotal * SALES_TAX_RATE, 2)
+    total = round(subtotal + tax, 2)
+    tz = timezone(timedelta(hours=RECEIPT_TIMEZONE_OFFSET))
+    timestamp = datetime.now(tz).strftime('%m/%d/%Y %I:%M %p') + ' ' + RECEIPT_TIMEZONE_NAME
+    return subtotal, tax, total, timestamp
+
 def run_demo():
     """Run demo sequence"""
     products = list(display.products)
@@ -71,13 +86,24 @@ def run_demo():
     time.sleep(1)
 
     running_total = 0.0
+    dispensed_totals = {}
 
     # Simulate dispensing on available products loaded from real config
     for index, product in enumerate(available_products[:2]):
-        print("   Dispensing {}...".format(product['name']))
-        step_ounces = 1.2 + (0.3 * index)
+        final_qty = round(random.uniform(2.0, 14.0), 1)
+        print("   Dispensing {}... target {}{}".format(
+            product['name'],
+            final_qty,
+            product['unit']
+        ))
+        step_ounces = round(final_qty / 4.0, 2)
+        qty = 0.0
+        price = 0.0
         for i in range(1, 5):
-            qty = i * step_ounces
+            if i < 4:
+                qty = round(i * step_ounces, 1)
+            else:
+                qty = final_qty
             price = round(qty * product['price_per_unit'], 2)
             display.update_product(
                 product_id=product['id'],
@@ -91,6 +117,12 @@ def run_demo():
             time.sleep(0.5)
 
         running_total = round(running_total + price, 2)
+        dispensed_totals[product['id']] = {
+            'product_name': product['name'],
+            'quantity': qty,
+            'unit': product['unit'],
+            'price': price
+        }
         display.update_product(
             product_id=product['id'],
             product_name=product['name'],
@@ -123,20 +155,15 @@ def run_demo():
     time.sleep(3)
     
     print("6. Complete - showing receipt")
-    receipt_items = []
-    for product in available_products[:2]:
-        qty = 4.8
-        price = round(qty * product['price_per_unit'], 2)
-        receipt_items.append({
-            'product_name': product['name'],
-            'quantity': qty,
-            'unit': product['unit'],
-            'price': price
-        })
-    receipt_total = round(sum(item['price'] for item in receipt_items), 2)
+    receipt_items = list(dispensed_totals.values())
+    subtotal = round(sum(item['price'] for item in receipt_items), 2)
+    subtotal, tax, receipt_total, timestamp = build_receipt_totals(subtotal)
     display.show_receipt(
         items=receipt_items,
-        total=receipt_total
+        subtotal=subtotal,
+        tax=tax,
+        total=receipt_total,
+        timestamp=timestamp
     )
     time.sleep(5)
     
@@ -200,8 +227,15 @@ def manual_mode():
                      'unit': p['unit'], 'price': (i + 1) * 4.2 * p['price_per_unit']}
                     for i, p in enumerate(products)
                 ]
-                total = sum(item['price'] for item in items)
-                display.show_receipt(items=items, total=total)
+                subtotal = round(sum(item['price'] for item in items), 2)
+                subtotal, tax, total, timestamp = build_receipt_totals(subtotal)
+                display.show_receipt(
+                    items=items,
+                    subtotal=subtotal,
+                    tax=tax,
+                    total=total,
+                    timestamp=timestamp
+                )
         elif state == 'error':
             display.show_error("We're sorry for the inconvenience", error_code="TEST-001")
     
